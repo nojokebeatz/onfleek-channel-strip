@@ -1,7 +1,8 @@
 // OnFleek Channel Strip — Electron main process
-const { app, BrowserWindow, ipcMain, shell, session } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, session, Tray, Menu, nativeImage, globalShortcut } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { spawn } = require('child_process');
 
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
@@ -9,12 +10,13 @@ app.setAppUserModelId('live.onfleek.channelstrip');
 
 if (!app.requestSingleInstanceLock()) app.quit();
 
-let win = null;
+let win = null, tray = null, quitting = false, muted = false;
+const startHidden = process.argv.includes('--hidden');
 const statePath = () => path.join(app.getPath('userData'), 'state.json');
 
 function createWindow() {
   win = new BrowserWindow({
-    width: 600, height: 1010, minWidth: 340, minHeight: 600,
+    width: 600, height: 1010, minWidth: 340, minHeight: 600, show: !startHidden,
     frame: false, backgroundColor: '#121315', title: 'OnFleek Channel Strip',
     icon: path.join(__dirname, '..', 'build', 'icon.png'),
     webPreferences: {
@@ -23,6 +25,7 @@ function createWindow() {
     }
   });
   win.setMenuBarVisibility(false);
+  win.on('close', (e) => { if (!quitting) { e.preventDefault(); win.hide(); } }); // X = hide to tray, keep processing
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 
   // Dev helper: --screenshot=<file.png> captures the UI and quits.
@@ -43,9 +46,74 @@ app.whenReady().then(() => {
   session.defaultSession.setPermissionRequestHandler((wc, perm, cb) => cb(ALLOWED.has(perm)));
   session.defaultSession.setPermissionCheckHandler((wc, perm) => ALLOWED.has(perm));
   createWindow();
+  createTray();
+  globalShortcut.register('CommandOrControl+Shift+M', () => win && win.webContents.send('hotkey', 'mute'));
 });
 
+app.on('before-quit', () => { quitting = true; });
+app.on('will-quit', () => globalShortcut.unregisterAll());
 app.on('window-all-closed', () => app.quit());
+
+/* ---------- tray + start with Windows ---------- */
+function showWin() { if (win) { win.show(); win.focus(); } }
+function trayMenu() {
+  return Menu.buildFromTemplate([
+    { label: 'Show Channel Strip', click: showWin },
+    { label: 'Mute mic   (Ctrl+Shift+M)', type: 'checkbox', checked: muted, click: () => win && win.webContents.send('hotkey', 'mute') },
+    { label: 'Start with Windows', type: 'checkbox', checked: app.getLoginItemSettings().openAtLogin, click: (item) => setAutostart(item.checked) },
+    { type: 'separator' },
+    { label: 'Quit', click: () => { quitting = true; app.quit(); } }
+  ]);
+}
+function createTray() {
+  try {
+    const img = nativeImage.createFromPath(path.join(__dirname, '..', 'build', 'icon.png')).resize({ width: 16, height: 16 });
+    tray = new Tray(img); tray.setToolTip('OnFleek Channel Strip'); tray.setContextMenu(trayMenu());
+    tray.on('click', showWin);
+  } catch (e) { tray = null; }
+}
+function setAutostart(on) {
+  app.setLoginItemSettings({ openAtLogin: !!on, args: ['--hidden'] });
+  if (tray) tray.setContextMenu(trayMenu());
+}
+ipcMain.handle('autostart:get', () => app.getLoginItemSettings().openAtLogin);
+ipcMain.handle('autostart:set', (e, on) => { setAutostart(on); return true; });
+ipcMain.handle('mute:state', (e, m) => {
+  muted = !!m;
+  if (tray) { tray.setContextMenu(trayMenu()); tray.setToolTip(muted ? 'OnFleek Channel Strip — MUTED' : 'OnFleek Channel Strip'); }
+});
+
+/* ---------- rename the virtual mic (e.g. "CABLE Output" -> "Virtual Mic Out") ----------
+   Windows keeps endpoint names in HKLM\...\MMDevices\Audio\Capture\<id>\Properties. Users may SET values
+   there (that is how the Settings app renames), but only if the key is opened asking for SetValue alone,
+   so this goes through .NET Registry with minimal rights. No admin prompt. */
+const runPSOut = (args) => new Promise((resolve, reject) => {
+  const p = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', ...args], { windowsHide: true });
+  let out = '', err = ''; p.stdout.on('data', d => out += d); p.stderr.on('data', d => err += d);
+  p.on('close', code => code === 0 ? resolve(out.trim()) : reject(new Error((err || out).trim() || ('exit ' + code))));
+});
+ipcMain.handle('mic:rename', async (e, from, to) => {
+  const esc = s => String(s).replace(/'/g, "''").replace(/[\r\n]/g, '');
+  const script = `
+$desc='{a45c254e-df1c-4efd-8020-67d146a850e0},2'; $fn='{a45c254e-df1c-4efd-8020-67d146a850e0},14'; $adap='{b3f8fa53-0004-438e-9003-51a46e139bfc},6'
+$root='SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\MMDevices\\Audio\\Capture'
+$rights=[System.Security.AccessControl.RegistryRights]::SetValue -bor [System.Security.AccessControl.RegistryRights]::QueryValues
+$cap=[Microsoft.Win32.Registry]::LocalMachine.OpenSubKey($root); $n=0
+foreach ($k in $cap.GetSubKeyNames()) {
+  $r=[Microsoft.Win32.Registry]::LocalMachine.OpenSubKey("$root\\$k\\Properties"); if (-not $r) { continue }
+  $d=[string]$r.GetValue($desc); $f=[string]$r.GetValue($fn); $a=[string]$r.GetValue($adap); $r.Close()
+  if ($d -eq '${esc(from)}' -or $f -like '${esc(from)} (*') {
+    $w=[Microsoft.Win32.Registry]::LocalMachine.OpenSubKey("$root\\$k\\Properties",[Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,$rights)
+    $w.SetValue($desc,'${esc(to)}',[Microsoft.Win32.RegistryValueKind]::String)
+    if ($f) { $full = if ($a) { '${esc(to)} (' + $a + ')' } else { '${esc(to)}' }; $w.SetValue($fn,$full,[Microsoft.Win32.RegistryValueKind]::String) }
+    $w.Close(); $n++
+  }
+}
+"RENAMED $n"`;
+  const file = path.join(app.getPath('temp'), 'onfleek-rename-mic.ps1');
+  fs.writeFileSync(file, script, 'utf8');
+  return await runPSOut(['-File', file]);
+});
 
 ipcMain.handle('state:load', () => {
   try { return JSON.parse(fs.readFileSync(statePath(), 'utf8')); } catch { return null; }
@@ -81,7 +149,6 @@ ipcMain.handle('update:install', () => { if (updater) setImmediate(() => updater
 ipcMain.handle('shell:open', (e, url) => { if (/^https?:\/\//.test(url)) shell.openExternal(url); });
 // VB-CABLE helper. License allows copying the package AS IS but forbids folding it into another
 // installer, so we fetch the unmodified zip from vb-audio.com at click time and open THEIR setup.
-const { spawn } = require('child_process');
 const runPS = (cmd) => new Promise((resolve, reject) => {
   const p = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', cmd], { windowsHide: true });
   let err = ''; p.stderr.on('data', d => err += d);

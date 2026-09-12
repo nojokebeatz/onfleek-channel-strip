@@ -47,7 +47,7 @@ const DEFAULTS = {
   compIn: 1, compThresh: -18, compRatio: 3, compAttack: 10, compRelease: 150, compMakeup: 4, compMix: 100,
   eqIn: 1, hfFreq: 12000, hfGain: 1.5, hfBell: 0, hmfFreq: 3000, hmfGain: 1.5, hmfQ: 1,
   lmfFreq: 300, lmfGain: -1.5, lmfQ: 1, lfFreq: 100, lfGain: 1, lfBell: 0,
-  fader: 0, bypass: 0
+  fader: 0, bypass: 0, mute: 0, limIn: 1
 };
 
 class StripProcessor extends AudioWorkletProcessor {
@@ -59,6 +59,7 @@ class StripProcessor extends AudioWorkletProcessor {
     this.gateEnv = 0; this.gateGain = 1; this.gateOpen = false; this.holdCount = 0;
     this.compGr = 0; this.compEnv = 0;
     this.trimG = 1; this.makeupG = 1; this.faderG = 1; this.mixW = 1;
+    this.muteG = 1; this.limG = 1; this.limRedMax = 0; this.dl = new Float32Array(256); this.dlPos = 0;
     this.dn = 1e-18;
     this.pkIn = 0; this.pkOut = 0; this.grMax = 0; this.gateRedMax = 0; this.count = 0;
     this.port.onmessage = (e) => {
@@ -83,6 +84,9 @@ class StripProcessor extends AudioWorkletProcessor {
     this.faderT = p.fader <= -89 ? 0 : LIN(p.fader);
     this.mixT = p.compMix / 100;
     this.sm = TC(8, sr); // gain-change smoothing (anti-zipper)
+    this.muteT = p.mute ? 0 : 1;
+    this.limN = Math.min(255, Math.max(1, Math.round(0.001 * sr)));   // 1 ms look-ahead
+    this.limAtk = TC(0.15, sr); this.limRel = TC(80, sr); this.limCeil = LIN(-1);
   }
   process(inputs, outputs) {
     const inp = inputs[0], out = outputs[0];
@@ -128,14 +132,24 @@ class StripProcessor extends AudioWorkletProcessor {
         } else { this.compGr += (0 - this.compGr) * this.cRel; }
         if (p.eqIn) { x = this.eqLF.process(x); x = this.eqLMF.process(x); x = this.eqHMF.process(x); x = this.eqHF.process(x); }
         this.faderG += (this.faderT - this.faderG) * sm; x *= this.faderG;
+        if (p.limIn) { // 1 ms look-ahead brick-wall limiter, ceiling -1 dBFS
+          const ax2 = Math.abs(x), need = ax2 > this.limCeil ? this.limCeil / ax2 : 1;
+          this.limG += (need < this.limG ? this.limAtk : this.limRel) * (need - this.limG);
+          const buf = this.dl, rd = (this.dlPos - this.limN) & 255;
+          const delayed = buf[rd]; buf[this.dlPos] = x; this.dlPos = (this.dlPos + 1) & 255;
+          x = delayed * this.limG;
+          if (x > this.limCeil) x = this.limCeil; else if (x < -this.limCeil) x = -this.limCeil;
+          const lr = -DB(this.limG + 1e-9); if (lr > this.limRedMax) this.limRedMax = lr;
+        } else { this.limG = 1; }
       } else { x = raw; }
+      this.muteG += (this.muteT - this.muteG) * sm; x *= this.muteG;
       const ao = Math.abs(x); if (ao > this.pkOut) this.pkOut = ao;
       for (let c = 0; c < out.length; c++) out[c][i] = x;
     }
     this.count += n;
     if (this.count >= 1024) {
-      this.port.postMessage({ type: 'meter', inPk: this.pkIn, outPk: this.pkOut, gr: this.grMax, gateRed: this.gateRedMax, gateOpen: this.gateOpen });
-      this.count = 0; this.pkIn = this.pkOut = this.grMax = this.gateRedMax = 0;
+      this.port.postMessage({ type: 'meter', inPk: this.pkIn, outPk: this.pkOut, gr: this.grMax, gateRed: this.gateRedMax, gateOpen: this.gateOpen, lim: this.limRedMax });
+      this.count = 0; this.pkIn = this.pkOut = this.grMax = this.gateRedMax = this.limRedMax = 0;
     }
     return true;
   }

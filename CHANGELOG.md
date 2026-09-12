@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.3.0 — 2026-09-12
+- NAME IT button: renames the cable's recording side to "Virtual Mic Out" so Zoom / Webex / Discord list
+  that exact name. No admin prompt (opens the registry key asking for SetValue only).
+- MUTE button + global hotkey Ctrl+Shift+M (works while any app has focus); tray menu shows the state.
+- LEARN button: listen to 2 s of room noise and set the gate threshold 8 dB above it.
+- LIM: 1 ms look-ahead safety limiter at -1 dBFS on the output, with a lamp when it works.
+- Live EQ response curve (filters + 4 bands) drawn above the EQ knobs.
+- Lives in the tray: X hides the window and keeps processing; tray menu = Show / Mute / Start with
+  Windows / Quit. BOOT button = start with Windows, hidden. Auto-reconnect when the mic drops.
+
 ## 1.2.0 — 2026-09-12
 - Fix: device dropdown lists were dark text on a dark box. Now light text, dark list.
 - Self-update: the installed app downloads new versions from GitHub in the background and shows

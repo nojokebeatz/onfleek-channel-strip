@@ -34,8 +34,9 @@
           <span class="lcd" id="lcd">STANDBY</span>
           <span class="ledlabel"><i class="led amber" id="ledCable"></i>CABLE</span>
           <button class="tog" data-lamp="#c8ff5a" id="btnListen">LISTEN</button>
+          <button class="tog" data-lamp="#c8ff5a" id="btnBoot" title="Start with Windows, hidden in the tray">BOOT</button>
         </div>
-        <div class="micline" id="micHint"></div>
+        <div class="micline" id="micHint" hidden><span id="micHintText"></span><button class="hintbtn small" id="btnName" hidden>NAME IT “VIRTUAL MIC OUT”</button></div>
         <div class="hint" id="cableHint" hidden>
           <button class="hintbtn" id="btnCable">INSTALL CABLE</button>
           <span id="cableHintText">No virtual cable found. This gets the free <a href="#" id="cableLink">VB-CABLE</a> (donationware by vb-audio.com), opens its setup, you click “Install Driver”, then restart the PC. After that pick “CABLE Input” under SEND TO, and “CABLE Output” as the mic in your other apps. Have Voicemeeter? Pick “Voicemeeter Input” instead and use “Voicemeeter Out B1” as the mic.</span>
@@ -56,7 +57,7 @@
 
       <section class="sec sec-gate">
         <div class="sec-head"><span class="sec-title">GATE / EXPANDER</span>
-          <div class="sec-btns"><button class="tog" data-tog="gateExp" data-lamp="#4cff6a">EXP</button><button class="tog" data-tog="gateIn">IN</button></div>
+          <div class="sec-btns"><button class="tog wide" id="btnLearn" data-lamp="#c8ff5a" title="Stay quiet for 2 seconds: sets THRESHOLD just above your room noise">LEARN</button><button class="tog" data-tog="gateExp" data-lamp="#4cff6a">EXP</button><button class="tog" data-tog="gateIn">IN</button></div>
         </div>
         <div class="knobrow">
           <div class="knob c-grey" data-knob="gateThresh" data-label="THRESHOLD"></div>
@@ -97,6 +98,7 @@
         <div class="sec-head"><span class="sec-title">EQUALISER</span>
           <div class="sec-btns"><button class="tog" data-tog="eqIn">IN</button></div>
         </div>
+        <canvas id="eqCurve" class="eqcurve" width="330" height="56"></canvas>
         <div class="knobrow band"><span class="bandtag hf">HF</span>
           <div class="knob c-red" data-knob="hfFreq" data-label="FREQ"></div>
           <div class="knob c-red" data-knob="hfGain" data-label="GAIN"></div>
@@ -123,7 +125,9 @@
         <div class="sec-head"><span class="sec-title">OUTPUT</span>
           <div class="sec-btns">
             <label class="patch preset"><span>PRESET</span><select id="selPreset"></select></label>
+            <span class="ledlabel"><i class="led amber" id="ledLim"></i></span><button class="tog" data-tog="limIn" data-lamp="#ffb02e" title="Safety limiter: nothing louder than -1 dB gets out">LIM</button>
             <button class="tog wide" data-tog="bypass" data-lamp="#ff3b30">BYPASS</button>
+            <button class="tog wide" data-tog="mute" data-lamp="#ff3b30" title="Ctrl+Shift+M works in any app">MUTE</button>
           </div>
         </div>
       </section>

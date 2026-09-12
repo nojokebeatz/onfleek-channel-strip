@@ -43,6 +43,18 @@ launch + hourly, downloads in the background, and `quitAndInstall` on the RESTAR
 Portable builds (`PORTABLE_EXECUTABLE_FILE` set) and dev runs use the plain GitHub API check + GET IT link.
 ⛔ A release WITHOUT `latest.yml` is invisible to installed apps. Upload Setup exe + blockmap + latest.yml.
 
+## Renaming the virtual mic ("Virtual Mic Out", added 1.3.0)
+Endpoint names live in `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Capture\<id>\Properties`,
+value `{a45c254e-df1c-4efd-8020-67d146a850e0},2` (DeviceDesc; the Sound app's "rename" edits this).
+`Set-ItemProperty` FAILS even as admin (the provider asks for full write rights). Opening the key through
+.NET `Registry.LocalMachine.OpenSubKey(path, ReadWriteSubTree, SetValue|QueryValues)` works as a normal
+user, no UAC. Verified 09-12 on this box (rename + revert of a stale "Line In"). `mic:rename` in main.js.
+
+## Tray / hotkey (added 1.3.0)
+Closing the window hides it (processing continues); Quit is in the tray menu. `Ctrl+Shift+M` is a global
+shortcut for MUTE. BOOT = `app.setLoginItemSettings({openAtLogin, args:['--hidden']})`; `--hidden` starts
+with the window not shown. Mute never persists across launches (reset to 0 on load).
+
 ## Traps
 - Chromium hides device names until the mic permission is granted once — `unlockLabels()` does that.
 - `AudioContext.setSinkId('')` = default output; `'default'` id must be mapped to `''`.

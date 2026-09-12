@@ -35,7 +35,7 @@ const P = {
   lfFreq:      { min: 30, max: 450, def: 100, log: true, fmt: hz },
   lfGain:      { min: -15, max: 15, def: 1, fmt: dbs, center: true }
 };
-const TOG = { filtersIn: 1, gateIn: 1, gateExp: 1, compIn: 1, eqIn: 1, hfBell: 0, lfBell: 0, bypass: 0 };
+const TOG = { filtersIn: 1, gateIn: 1, gateExp: 1, compIn: 1, eqIn: 1, hfBell: 0, lfBell: 0, bypass: 0, mute: 0, limIn: 1 };
 
 const DEFAULT_PARAMS = () => {
   const o = {}; for (const k in P) o[k] = P[k].def; Object.assign(o, TOG); o.fader = 0; return o;
@@ -54,7 +54,8 @@ const PRESETS = {
 /* ---------- state ---------- */
 const state = { params: DEFAULT_PARAMS(), inputId: '', outputId: '', preset: 'Voice – Natural' };
 let ctx = null, node = null, stream = null, running = false, listen = false, version = '0.0.0';
-const meter = { inPk: 0, outPk: 0, gr: 0, gateRed: 0, gateOpen: false };
+let learning = false, runLcd = 'STANDBY', reconnectTimer = 0, lastIns = [];
+const meter = { inPk: 0, outPk: 0, gr: 0, gateRed: 0, gateOpen: false, lim: 0 };
 
 const toNorm = (spec, v) => spec.log ? Math.log(v / spec.min) / Math.log(spec.max / spec.min) : (v - spec.min) / (spec.max - spec.min);
 const fromNorm = (spec, n) => { n = clamp(n, 0, 1); return spec.log ? spec.min * Math.pow(spec.max / spec.min, n) : spec.min + (spec.max - spec.min) * n; };
@@ -102,9 +103,12 @@ const togEls = {};
 function buildToggle(btn) {
   const id = btn.dataset.tog; togEls[id] = btn;
   if (btn.dataset.lamp) btn.style.setProperty('--lamp', btn.dataset.lamp);
-  btn.addEventListener('click', () => { state.params[id] = state.params[id] ? 0 : 1; renderToggle(id); changed(); });
+  btn.addEventListener('click', () => { state.params[id] = state.params[id] ? 0 : 1; renderToggle(id); changed(id === 'mute'); });
 }
-function renderToggle(id) { togEls[id] && togEls[id].classList.toggle('on', !!state.params[id]); }
+function renderToggle(id) {
+  togEls[id] && togEls[id].classList.toggle('on', !!state.params[id]);
+  if (id === 'mute') window.cs.muteState(!!state.params.mute);
+}
 
 /* ---------- fader ---------- */
 const FADER_ANCHORS = [[0, -90], [0.08, -60], [0.16, -40], [0.26, -30], [0.38, -20], [0.5, -10], [0.62, -5], [0.75, 0], [1, 10]];
@@ -143,11 +147,11 @@ function renderFader() {
 }
 
 /* ---------- render all / change plumbing ---------- */
-function renderAll() { for (const id in knobEls) renderKnob(id); for (const id in togEls) renderToggle(id); renderFader(); $('#selPreset').value = state.preset in PRESETS ? state.preset : ''; }
+function renderAll() { for (const id in knobEls) renderKnob(id); for (const id in togEls) renderToggle(id); renderFader(); $('#selPreset').value = state.preset in PRESETS ? state.preset : ''; drawCurve(); }
 let sendPending = false, saveTimer = 0;
 function changed(keepPreset) {
   if (!keepPreset && state.preset !== '') { state.preset = ''; $('#selPreset').value = ''; }
-  if (!sendPending) { sendPending = true; requestAnimationFrame(() => { sendPending = false; sendParams(); }); }
+  if (!sendPending) { sendPending = true; requestAnimationFrame(() => { sendPending = false; sendParams(); drawCurve(); }); }
   clearTimeout(saveTimer); saveTimer = setTimeout(save, 400);
 }
 function sendParams() { if (node) node.port.postMessage({ type: 'params', p: state.params }); }
@@ -175,10 +179,16 @@ function otherAppsMic(label) {
   if (/voicemeeter input/i.test(label)) return 'Voicemeeter Out B1';
   return '';
 }
+const MIC_NAME = 'Virtual Mic Out';
 function renderMicHint() {
   const sel = $('#selOut'); const label = sel.selectedOptions[0] ? sel.selectedOptions[0].textContent : '';
-  const m = otherAppsMic(label);
-  $('#micHint').textContent = m ? `IN ZOOM / DISCORD / OBS PICK MIC: ${m}` : '';
+  const target = otherAppsMic(label), box = $('#micHint');
+  if (!target) { box.hidden = true; return; }
+  const stillThere = lastIns.some(d => (d.label || '').toLowerCase().startsWith(target.toLowerCase()));
+  const renamed = !stillThere && lastIns.some(d => new RegExp(MIC_NAME, 'i').test(d.label || ''));
+  $('#micHintText').textContent = `IN ZOOM / WEBEX / DISCORD PICK MIC: ${renamed ? MIC_NAME : target}`;
+  $('#btnName').hidden = renamed; $('#btnName').dataset.from = target;
+  box.hidden = false;
 }
 async function refreshDevices() {
   const devs = await navigator.mediaDevices.enumerateDevices();
@@ -190,7 +200,8 @@ async function refreshDevices() {
     if (pick) sel.value = pick.deviceId;
     return pick ? pick.deviceId : '';
   };
-  state.inputId = fill($('#selIn'), ins, state.inputId, d => /virtual mic|virtual usb/i.test(d.label));
+  lastIns = ins;
+  state.inputId = fill($('#selIn'), ins, state.inputId, d => /virtual mic in|virtual usb/i.test(d.label));
   state.outputId = fill($('#selOut'), outs, state.outputId, d => CABLE_RX.test(d.label));
   const cable = outs.some(d => CABLE_RX.test(d.label));
   $('#ledCable').classList.toggle('on', cable);
@@ -216,6 +227,8 @@ async function start() {
     if (state.inputId && state.inputId !== 'default') constraints.audio.deviceId = { exact: state.inputId };
     try { stream = await navigator.mediaDevices.getUserMedia(constraints); }
     catch (e) { delete constraints.audio.deviceId; stream = await navigator.mediaDevices.getUserMedia(constraints); lcd('SAVED MIC MISSING · USING DEFAULT', true); }
+    const track = stream.getAudioTracks()[0];
+    if (track) track.addEventListener('ended', () => { if (running) { lcd('MIC LOST · RECONNECTING…', true); scheduleReconnect(); } });
     const src = ctx.createMediaStreamSource(stream);
     node = new AudioWorkletNode(ctx, 'strip-processor', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] });
     node.port.onmessage = e => { if (e.data.type === 'meter') Object.assign(meter, e.data); };
@@ -226,7 +239,7 @@ async function start() {
     running = true;
     $('#btnPower').classList.add('on'); $('.led', $('#btnPower')).classList.add('on');
     const lat = Math.round(((ctx.baseLatency || 0) + (ctx.outputLatency || 0)) * 1000);
-    lcd(`RUN · ${(ctx.sampleRate / 1000).toFixed(1)} kHz · ${lat} ms`);
+    runLcd = `RUN · ${(ctx.sampleRate / 1000).toFixed(1)} kHz · ${lat} ms`; lcd(runLcd); drawCurve();
   } catch (e) {
     lcd('MIC ERROR: ' + (e.message || e.name), true); await stop();
   }
@@ -236,10 +249,18 @@ async function stop() {
   if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
   if (ctx) { try { await ctx.close(); } catch {} ctx = null; node = null; }
   $('#btnPower').classList.remove('on'); $('.led', $('#btnPower')).classList.remove('on');
-  Object.assign(meter, { inPk: 0, outPk: 0, gr: 0, gateRed: 0, gateOpen: false });
+  Object.assign(meter, { inPk: 0, outPk: 0, gr: 0, gateRed: 0, gateOpen: false, lim: 0 });
   if (!$('#lcd').classList.contains('err')) lcd('STANDBY');
 }
 async function restart() { await stop(); await start(); }
+function scheduleReconnect() { // mic unplugged / device vanished: keep trying every 3 s until it is back
+  clearTimeout(reconnectTimer);
+  reconnectTimer = setTimeout(async () => {
+    await stop(); await refreshDevices(); await start();
+    if (!running) { lcd('MIC MISSING · RETRYING…', true); scheduleReconnect(); }
+  }, 3000);
+}
+function flashLcd(text, ms = 3000) { lcd(text); setTimeout(() => { if (running && !learning) lcd(runLcd); }, ms); }
 
 /* ---------- meters ---------- */
 const cv = $('#meters'), g = cv.getContext('2d');
@@ -314,7 +335,64 @@ function loop(t) {
   const gateOn = running && state.params.gateIn && !state.params.bypass;
   $('#ledGateOpen').classList.toggle('on', gateOn && meter.gateOpen);
   $('#ledGateRed').classList.toggle('on', gateOn && meter.gateRed > 0.5);
+  $('#ledLim').classList.toggle('on', running && !!state.params.limIn && !state.params.bypass && meter.lim > 0.3);
   requestAnimationFrame(loop);
+}
+
+/* ---------- EQ response curve ---------- */
+const cvE = $('#eqCurve'), gE = cvE.getContext('2d');
+cvE.width = 330 * DPR; cvE.height = 56 * DPR; gE.scale(DPR, DPR);
+function coefs(type, f, Q, g, sr) { // same RBJ math as the worklet, normalised by a0
+  const A = Math.pow(10, g / 40), w = 2 * Math.PI * f / sr, c = Math.cos(w), s = Math.sin(w); let b0, b1, b2, a0, a1, a2;
+  if (type === 'lowpass') { const a = s / (2 * Q); b0 = (1 - c) / 2; b1 = 1 - c; b2 = (1 - c) / 2; a0 = 1 + a; a1 = -2 * c; a2 = 1 - a; }
+  else if (type === 'highpass') { const a = s / (2 * Q); b0 = (1 + c) / 2; b1 = -(1 + c); b2 = (1 + c) / 2; a0 = 1 + a; a1 = -2 * c; a2 = 1 - a; }
+  else if (type === 'peaking') { const a = s / (2 * Q); b0 = 1 + a * A; b1 = -2 * c; b2 = 1 - a * A; a0 = 1 + a / A; a1 = -2 * c; a2 = 1 - a / A; }
+  else {
+    const a = (s / 2) * Math.sqrt((A + 1 / A) * (1 / Q - 1) + 2), r = 2 * Math.sqrt(A) * a;
+    if (type === 'lowshelf') { b0 = A * ((A + 1) - (A - 1) * c + r); b1 = 2 * A * ((A - 1) - (A + 1) * c); b2 = A * ((A + 1) - (A - 1) * c - r); a0 = (A + 1) + (A - 1) * c + r; a1 = -2 * ((A - 1) + (A + 1) * c); a2 = (A + 1) + (A - 1) * c - r; }
+    else { b0 = A * ((A + 1) + (A - 1) * c + r); b1 = -2 * A * ((A - 1) + (A + 1) * c); b2 = A * ((A + 1) + (A - 1) * c - r); a0 = (A + 1) - (A - 1) * c + r; a1 = 2 * ((A - 1) - (A + 1) * c); a2 = (A + 1) - (A - 1) * c - r; }
+  }
+  return [b0 / a0, b1 / a0, b2 / a0, a1 / a0, a2 / a0];
+}
+function magDb(c, w) {
+  const cw = Math.cos(w), c2 = Math.cos(2 * w), sw = Math.sin(w), s2 = Math.sin(2 * w);
+  const nr = c[0] + c[1] * cw + c[2] * c2, ni = -(c[1] * sw + c[2] * s2), dr = 1 + c[3] * cw + c[4] * c2, di = -(c[3] * sw + c[4] * s2);
+  return 10 * Math.log10((nr * nr + ni * ni) / (dr * dr + di * di) + 1e-20);
+}
+function onePoleHpDb(f, w, sr) {
+  const k = Math.exp(-2 * Math.PI * f / sr), cw = Math.cos(w), sw = Math.sin(w);
+  return 20 * Math.log10(k * Math.hypot(1 - cw, sw) / Math.hypot(1 - k * cw, k * sw) + 1e-20);
+}
+const fx = (f, W) => W * Math.log(f / 20) / Math.log(1000);
+function drawCurve() {
+  const p = state.params, sr = ctx ? ctx.sampleRate : 48000, W = 330, H = 56, RANGE = 18;
+  const active = !p.bypass && (p.eqIn || p.filtersIn), stages = [];
+  if (!p.bypass && p.filtersIn) { stages.push(coefs('highpass', p.hpf, 1.0, 0, sr)); stages.push(coefs('lowpass', p.lpf, 0.7071, 0, sr)); }
+  if (!p.bypass && p.eqIn) {
+    stages.push(coefs(p.lfBell ? 'peaking' : 'lowshelf', p.lfFreq, p.lfBell ? 0.8 : 0.7071, p.lfGain, sr));
+    stages.push(coefs('peaking', p.lmfFreq, p.lmfQ, p.lmfGain, sr)); stages.push(coefs('peaking', p.hmfFreq, p.hmfQ, p.hmfGain, sr));
+    stages.push(coefs(p.hfBell ? 'peaking' : 'highshelf', p.hfFreq, p.hfBell ? 0.8 : 0.7071, p.hfGain, sr));
+  }
+  gE.clearRect(0, 0, W, H);
+  gE.strokeStyle = 'rgba(255,255,255,.07)'; gE.lineWidth = 1; gE.beginPath();
+  [50, 100, 200, 500, 1000, 2000, 5000, 10000].forEach(f => { const x = Math.round(fx(f, W)) + .5; gE.moveTo(x, 0); gE.lineTo(x, H); });
+  [-12, -6, 6, 12].forEach(d => { const y = Math.round(H / 2 - d * (H / 2) / RANGE) + .5; gE.moveTo(0, y); gE.lineTo(W, y); });
+  gE.stroke();
+  gE.strokeStyle = 'rgba(255,255,255,.2)'; gE.beginPath(); gE.moveTo(0, H / 2 + .5); gE.lineTo(W, H / 2 + .5); gE.stroke();
+  gE.fillStyle = 'rgba(255,255,255,.3)'; gE.font = '600 6.5px Bahnschrift, "Arial Narrow", sans-serif'; gE.textAlign = 'left';
+  [['100', 100], ['1k', 1000], ['10k', 10000]].forEach(([t, f]) => gE.fillText(t, fx(f, W) + 2, H - 2));
+  gE.textAlign = 'right'; gE.fillText('+12', W - 2, 8); gE.fillText('-12', W - 2, H - 9);
+  gE.beginPath();
+  for (let x = 0; x <= W; x++) {
+    const f = 20 * Math.pow(1000, x / W), w = 2 * Math.PI * f / sr; let d = 0;
+    for (const c of stages) d += magDb(c, w);
+    if (!p.bypass && p.filtersIn) d += onePoleHpDb(p.hpf, w, sr);
+    const y = clamp(H / 2 - d * (H / 2) / RANGE, 1, H - 1);
+    x === 0 ? gE.moveTo(x, y) : gE.lineTo(x, y);
+  }
+  gE.lineWidth = 1.5; gE.strokeStyle = active ? '#ffb02e' : 'rgba(255,255,255,.25)';
+  gE.shadowColor = active ? 'rgba(255,176,46,.7)' : 'transparent'; gE.shadowBlur = active ? 5 : 0; gE.stroke(); gE.shadowBlur = 0;
+  if (active) { gE.lineTo(W, H / 2); gE.lineTo(0, H / 2); gE.closePath(); gE.fillStyle = 'rgba(255,176,46,.10)'; gE.fill(); }
 }
 
 /* ---------- scale to fit window ---------- */
@@ -360,7 +438,40 @@ async function boot() {
   $$('[data-knob]').forEach(buildKnob); $$('[data-tog]').forEach(buildToggle); buildFader(); buildPresets();
   const saved = await window.cs.loadState();
   if (saved && saved.params) { state.params = Object.assign(DEFAULT_PARAMS(), saved.params); state.inputId = saved.inputId || ''; state.outputId = saved.outputId || ''; state.preset = saved.preset ?? 'Voice – Natural'; }
+  state.params.mute = 0; // never start muted
   renderAll();
+  // MUTE from the tray or the global Ctrl+Shift+M
+  window.cs.onHotkey(k => { if (k === 'mute') { state.params.mute = state.params.mute ? 0 : 1; renderToggle('mute'); changed(true); flashLcd(state.params.mute ? 'MIC MUTED' : 'MIC LIVE', 1500); } });
+  // LEARN: 2 s of room noise -> gate threshold 8 dB above it
+  $('#btnLearn').onclick = () => {
+    if (!running || learning) return;
+    learning = true; let maxPk = 0, left = 2.0; $('#btnLearn').classList.add('on');
+    const t = setInterval(() => {
+      maxPk = Math.max(maxPk, meter.inPk); left -= 0.1; lcd(`LEARNING NOISE · STAY QUIET ${Math.max(0, left).toFixed(1)} s`);
+      if (left <= 0) {
+        clearInterval(t); learning = false; $('#btnLearn').classList.remove('on');
+        const th = clamp(Math.round(dB(maxPk) + 8), -70, -6);
+        state.params.gateThresh = th; renderKnob('gateThresh'); changed();
+        flashLcd(`GATE THRESHOLD SET TO ${th} dB`, 3000);
+      }
+    }, 100);
+  };
+  // NAME IT: rename the cable's recording side to "Virtual Mic Out" so Zoom / Webex show that name
+  $('#btnName').onclick = async () => {
+    const b = $('#btnName'), from = b.dataset.from; b.disabled = true; lcd(`RENAMING "${from}"…`);
+    try {
+      const r = await window.cs.renameMic(from, MIC_NAME); await refreshDevices();
+      const ok = /RENAMED [1-9]/.test(r);
+      lcd(ok ? `DONE · PICK "${MIC_NAME.toUpperCase()}" IN ZOOM / WEBEX (RESTART THEM IF NOT LISTED)` : `RENAME: "${from}" NOT FOUND IN WINDOWS`, !ok);
+    } catch (e) { lcd('RENAME FAILED: ' + (e.message || e).toString().slice(0, 60), true); }
+    b.disabled = false;
+  };
+  // BOOT: start with Windows, hidden in the tray
+  $('#btnBoot').classList.toggle('on', !!(await window.cs.getAutostart()));
+  $('#btnBoot').onclick = async () => {
+    const on = !$('#btnBoot').classList.contains('on'); await window.cs.setAutostart(on);
+    $('#btnBoot').classList.toggle('on', on); flashLcd(on ? 'STARTS WITH WINDOWS · LIVES IN THE TRAY' : 'AUTO START OFF', 2500);
+  };
   $('#btnMin').onclick = () => window.cs.minimize(); $('#btnClose').onclick = () => window.cs.close();
   $('#cableLink').onclick = e => { e.preventDefault(); window.cs.openExternal('https://vb-audio.com/Cable/'); };
   window.cs.onCableProgress(s => lcd({ download: 'DOWNLOADING VB-CABLE…', extract: 'UNPACKING…', launch: 'OPENING VB-CABLE SETUP · CLICK YES' }[s] || s));

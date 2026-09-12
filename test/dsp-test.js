@@ -7,7 +7,7 @@ class AudioWorkletProcessor { constructor() { this.port = { postMessage() {}, on
 new Function('AudioWorkletProcessor', 'registerProcessor', 'sampleRate', src)(AudioWorkletProcessor, (n, c) => { Proc = c; }, SR);
 
 const FLAT = { trim: 0, filtersIn: 0, gateIn: 0, compIn: 0, eqIn: 0, bypass: 0, fader: 0, compMakeup: 0,
-  hfGain: 0, hmfGain: 0, lmfGain: 0, lfGain: 0 };
+  hfGain: 0, hmfGain: 0, lmfGain: 0, lfGain: 0, limIn: 0, mute: 0 };
 const dB = (g) => 20 * Math.log10(g);
 
 function run(params, freq, levelDb, seconds = 1.2) {
@@ -48,5 +48,9 @@ check('EQ LMF -6 @ 400', run({ eqIn: 1, lmfFreq: 400, lmfGain: -6, lmfQ: 1 }, 40
 check('EQ HF shelf +6 @ 4k lifts 12k', run({ eqIn: 1, hfFreq: 4000, hfGain: 6, hfBell: 0 }, 12000, -12), -6, 0.5);
 check('EQ LF shelf +6 @ 200 lifts 50', run({ eqIn: 1, lfFreq: 200, lfGain: 6, lfBell: 0 }, 50, -12), -6, 0.5);
 check('EQ LF bell +6 @ 100 does NOT lift 1k', run({ eqIn: 1, lfFreq: 100, lfGain: 6, lfBell: 1 }, 1000, -12), -12, 0.3);
+check('limiter holds +6 dBFS input at -1 dBFS', run({ limIn: 1 }, 1000, 6), -1, 0.3);
+check('limiter leaves -6 alone', run({ limIn: 1 }, 1000, -6), -6, 0.1);
+const mu = run({ mute: 1 }, 1000, -6);
+console.log(`${mu < -80 ? 'PASS' : 'FAIL'}  mute silences: ${mu.toFixed(1)} dB (want < -80)`); if (mu >= -80) fails++;
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASS');
 process.exit(fails ? 1 : 0);

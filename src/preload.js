@@ -9,6 +9,11 @@ contextBridge.exposeInMainWorld('cs', {
   updateInstall: () => ipcRenderer.invoke('update:install'),
   onUpdateEvent: (cb) => ipcRenderer.on('update:event', (e, d) => cb(d)),
   installCable: () => ipcRenderer.invoke('cable:install'),
+  onHotkey: (cb) => ipcRenderer.on('hotkey', (e, k) => cb(k)),
+  muteState: (m) => ipcRenderer.invoke('mute:state', m),
+  renameMic: (from, to) => ipcRenderer.invoke('mic:rename', from, to),
+  getAutostart: () => ipcRenderer.invoke('autostart:get'),
+  setAutostart: (on) => ipcRenderer.invoke('autostart:set', on),
   onCableProgress: (cb) => ipcRenderer.on('cable:progress', (e, s) => cb(s)),
   minimize: () => ipcRenderer.invoke('win:minimize'),
   close: () => ipcRenderer.invoke('win:close')
