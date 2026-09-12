@@ -29,6 +29,13 @@ html,body{margin:0;height:100%;background:#0f1012;overflow:hidden;font-family:va
 .winbtns button{width:22px;height:18px;border:1px solid #111;border-radius:3px;background:linear-gradient(#4a4b4f,#2e2f32);color:#cfcdc2;font:700 12px/1 var(--font);cursor:pointer;
   box-shadow:0 1px 1px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.12)}
 .winbtns button:hover{background:linear-gradient(#5a5b5f,#3a3b3e)} #btnClose:hover{color:#ff6b61}
+.winbtns .upd{width:auto;padding:0 8px 0 6px;margin-right:6px;display:inline-flex;align-items:center;gap:5px;font:800 8.5px var(--font);letter-spacing:1px}
+.winbtns .upd .led{width:6px;height:6px}
+.winbtns .upd.ready{background:linear-gradient(#ffb02e,#d98a12);color:#2a1a00;border-color:#000}
+.winbtns .upd.ready:hover{background:linear-gradient(#ffc45a,#e69a1e)}
+.winbtns .upd.busy{opacity:.75;cursor:progress}
+.winbtns .upd .led.amber.on{animation:updblink 1s infinite}
+@keyframes updblink{0%,100%{opacity:1}50%{opacity:.35}}
 .brand{display:flex;align-items:baseline;gap:10px}
 .logo{font:italic 800 15px var(--font);letter-spacing:.5px;color:#f1efe6;text-shadow:0 1px 0 #000,0 0 8px rgba(255,255,255,.12)}
 .model{font:600 9px var(--font);letter-spacing:1.6px;color:var(--ink-dim)}

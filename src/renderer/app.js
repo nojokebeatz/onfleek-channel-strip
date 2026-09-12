@@ -413,23 +413,56 @@ function showUpdateBar(text, btnText, onClick) {
   b.textContent = btnText; b.hidden = !onClick; b.onclick = onClick || null;
   $('#updateBar').hidden = false; fit();
 }
+// The UPDATE button in the top rail: one control that shows the state and does the right thing.
+//   idle       -> "UPDATE"            click = check now
+//   checking   -> "CHECKING…"         (amber blink)
+//   current    -> "UP TO DATE"        (green lamp, goes back to UPDATE after a few seconds)
+//   downloading-> "DOWNLOADING 42%"   (amber blink)
+//   ready      -> "RESTART TO UPDATE" click = install (installed build) / "GET vX.Y.Z" click = download page (portable)
+const upd = { mode: 'manual', state: 'idle', action: null, timer: 0 };
+function setUpd(state, text, lamp, action) {
+  upd.state = state; upd.action = action || null;
+  const b = $('#btnUpdate'), led = $('#ledUpd');
+  $('#btnUpdateText').textContent = text;
+  b.classList.toggle('ready', state === 'ready'); b.classList.toggle('busy', state === 'checking' || state === 'downloading');
+  led.className = 'led ' + (lamp || 'green') + (lamp ? ' on' : '');
+  b.title = { idle: 'Check for a new version', checking: 'Looking for a new version…', current: 'You have the newest version',
+              downloading: 'Downloading the new version in the background', ready: action ? 'Click to update' : '', error: 'Could not reach the update server. Click to try again' }[state] || '';
+  clearTimeout(upd.timer);
+  if (state === 'current' || state === 'error') upd.timer = setTimeout(() => { if (upd.state === state) setUpd('idle', 'UPDATE', '', null); }, state === 'current' ? 6000 : 10000);
+}
 async function checkUpdateManual() { // portable / dev: look at GitHub, offer the download page
+  setUpd('checking', 'CHECKING…', 'amber', null);
   try {
-    const r = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, { headers: { Accept: 'application/vnd.github+json' } });
-    if (!r.ok) return; const j = await r.json(); const latest = (j.tag_name || '').replace(/^v/, '');
-    if (latest && cmpVer(latest, version) > 0) showUpdateBar(`NEW VERSION ${latest} IS READY`, 'GET IT', () => window.cs.openExternal(j.html_url));
-  } catch {}
+    const r = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, { headers: { Accept: 'application/vnd.github+json' }, cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json(); const latest = (j.tag_name || '').replace(/^v/, '');
+    if (latest && cmpVer(latest, version) > 0) {
+      const go = () => window.cs.openExternal(j.html_url);
+      setUpd('ready', `GET v${latest}`, 'amber', go);
+      showUpdateBar(`NEW VERSION ${latest} IS READY`, 'GET IT', go);
+    } else setUpd('current', 'UP TO DATE', 'green', null);
+  } catch (e) { setUpd('error', 'NO SIGNAL', 'red', null); }
+}
+function checkUpdateNow() {
+  if (upd.state === 'checking' || upd.state === 'downloading') return;
+  if (upd.state === 'ready' && upd.action) return upd.action();
+  if (upd.mode === 'auto') { setUpd('checking', 'CHECKING…', 'amber', null); window.cs.updateCheck(); }
+  else checkUpdateManual();
 }
 async function setupUpdates() {
-  const mode = await window.cs.updateMode();
-  if (mode !== 'auto') { checkUpdateManual(); setInterval(checkUpdateManual, 3600 * 1000); return; }
+  upd.mode = await window.cs.updateMode();
+  $('#btnUpdate').onclick = checkUpdateNow;
+  if (upd.mode !== 'auto') { checkUpdateManual(); setInterval(checkUpdateManual, 3600 * 1000); return; }
   window.cs.onUpdateEvent(d => {
-    if (d.type === 'available') showUpdateBar(`NEW VERSION ${d.version} · DOWNLOADING…`, '', null);
-    else if (d.type === 'progress') showUpdateBar(`NEW VERSION · DOWNLOADING ${d.percent}%`, '', null);
-    else if (d.type === 'downloaded') showUpdateBar(`VERSION ${d.version} IS READY`, 'RESTART TO UPDATE', () => window.cs.updateInstall());
-    else if (d.type === 'error') console.warn('updater:', d.message);
+    if (d.type === 'checking') setUpd('checking', 'CHECKING…', 'amber', null);
+    else if (d.type === 'none') setUpd('current', 'UP TO DATE', 'green', null);
+    else if (d.type === 'available') { setUpd('downloading', `DOWNLOADING v${d.version}`, 'amber', null); showUpdateBar(`NEW VERSION ${d.version} · DOWNLOADING…`, '', null); }
+    else if (d.type === 'progress') { setUpd('downloading', `DOWNLOADING ${d.percent}%`, 'amber', null); showUpdateBar(`NEW VERSION · DOWNLOADING ${d.percent}%`, '', null); }
+    else if (d.type === 'downloaded') { const go = () => window.cs.updateInstall(); setUpd('ready', 'RESTART TO UPDATE', 'amber', go); showUpdateBar(`VERSION ${d.version} IS READY`, 'RESTART TO UPDATE', go); }
+    else if (d.type === 'error') { console.warn('updater:', d.message); if (upd.state !== 'ready') setUpd('error', 'NO SIGNAL', 'red', null); }
   });
-  window.cs.updateCheck(); setInterval(() => window.cs.updateCheck(), 3600 * 1000);
+  checkUpdateNow(); setInterval(() => { if (upd.state === 'idle' || upd.state === 'current' || upd.state === 'error') checkUpdateNow(); }, 3600 * 1000);
 }
 
 /* ---------- boot ---------- */

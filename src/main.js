@@ -137,6 +137,8 @@ if (app.isPackaged && !isPortable) {
     updater = require('electron-updater').autoUpdater;
     updater.autoDownload = true; updater.autoInstallOnAppQuit = true; updater.allowPrerelease = false;
     const tell = (type, data) => win && !win.isDestroyed() && win.webContents.send('update:event', { type, ...data });
+    updater.on('checking-for-update', () => tell('checking', {}));
+    updater.on('update-not-available', (i) => tell('none', { version: i && i.version }));
     updater.on('update-available', (i) => tell('available', { version: i.version }));
     updater.on('download-progress', (p) => tell('progress', { percent: Math.round(p.percent) }));
     updater.on('update-downloaded', (i) => tell('downloaded', { version: i.version }));

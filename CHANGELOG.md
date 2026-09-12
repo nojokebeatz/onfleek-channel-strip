@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.1 — 2026-09-12
+- UPDATE button in the top rail, always visible. Checks on every launch and once an hour; click it to check
+  now. Reads CHECKING… / UP TO DATE / DOWNLOADING 42% / RESTART TO UPDATE (portable: GET vX.Y.Z).
+
 ## 1.3.0 — 2026-09-12
 - NAME IT button: renames the cable's recording side to "Virtual Mic Out" so Zoom / Webex / Discord list
   that exact name. No admin prompt (opens the registry key asking for SetValue only).
