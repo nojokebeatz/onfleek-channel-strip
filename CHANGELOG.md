@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.0.0 — 2026-09-12 — the one-stop shop (Voicemeeter replacement)
+- SETUP checklist with three lamps: CABLE installed, NAME (Windows calls it "Virtual Mic Out"),
+  ZOOM (Windows default mic = Virtual Mic Out, so Zoom / Webex / Teams need no clicks). Each row has
+  its own one-press button: INSTALL CABLE, NAME IT, MAKE DEFAULT.
+- No more SEND TO dropdown. The app finds the cable by itself. Its mic side is never offered as MIC IN
+  and the cable is never offered as HEADPHONES, so you cannot wire a loop.
+- HEADPHONES: pick your headphones, press MON, turn the PHONES knob. A second engine feeds your ears
+  with the same processing while the first feeds callers. Both at once, no extra delay.
+- TO ZOOM lamp in the OUTPUT section shows the cable name and goes dark when muted or no cable.
+- NAME IT now renames both sides of the cable ("Virtual Mic Out" for apps, "Virtual Mic Feed" in the
+  speakers list) so the Windows sound panel reads plainly too.
+- With no cable, the main engine is silent (never the speakers); meters still work.
+
 ## 1.3.1 — 2026-09-12
 - UPDATE button in the top rail, always visible. Checks on every launch and once an hour; click it to check
   now. Reads CHECKING… / UP TO DATE / DOWNLOADING 42% / RESTART TO UPDATE (portable: GET vX.Y.Z).

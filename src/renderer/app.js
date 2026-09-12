@@ -33,7 +33,8 @@ const P = {
   lmfGain:     { min: -15, max: 15, def: -1.5, fmt: dbs, center: true },
   lmfQ:        { min: 0.4, max: 4, def: 1, log: true, fmt: v => 'Q ' + v.toFixed(2) },
   lfFreq:      { min: 30, max: 450, def: 100, log: true, fmt: hz },
-  lfGain:      { min: -15, max: 15, def: 1, fmt: dbs, center: true }
+  lfGain:      { min: -15, max: 15, def: 1, fmt: dbs, center: true },
+  phones:      { min: -40, max: 6, def: 0, fmt: v => v <= -39.5 ? '-∞ dB' : dbs(v), center: true }
 };
 const TOG = { filtersIn: 1, gateIn: 1, gateExp: 1, compIn: 1, eqIn: 1, hfBell: 0, lfBell: 0, bypass: 0, mute: 0, limIn: 1 };
 
@@ -52,8 +53,9 @@ const PRESETS = {
 };
 
 /* ---------- state ---------- */
-const state = { params: DEFAULT_PARAMS(), inputId: '', outputId: '', preset: 'Voice – Natural' };
-let ctx = null, node = null, stream = null, running = false, listen = false, version = '0.0.0';
+const state = { params: DEFAULT_PARAMS(), inputId: '', outputId: '', phonesId: '', mon: 0, preset: 'Voice – Natural' };
+let ctx = null, node = null, stream = null, running = false, version = '0.0.0';
+let monCtx = null, monNode = null, monStream = null, monGain = null, lastOuts = [], setupTimer = 0, defaults = null, prevDefault = '';
 let learning = false, runLcd = 'STANDBY', reconnectTimer = 0, lastIns = [];
 const meter = { inPk: 0, outPk: 0, gr: 0, gateRed: 0, gateOpen: false, lim: 0 };
 
@@ -77,7 +79,7 @@ function buildKnob(el) {
   el.innerHTML = `<div class="ring">${ticksSVG(spec)}</div><div class="body"><div class="cap"><div class="ptr"></div></div></div><div class="lbl">${el.dataset.label}</div><div class="val"></div>`;
   const body = $('.body', el), cap = $('.cap', el), val = $('.val', el);
   knobEls[id] = { el, cap, val, spec };
-  const set = (v, fromUser) => { state.params[id] = v; renderKnob(id); if (fromUser) changed(); };
+  const set = (v, fromUser) => { state.params[id] = v; renderKnob(id); if (fromUser) changed(id === 'phones'); };
   let lastY = 0, dragging = false;
   body.addEventListener('pointerdown', e => { dragging = true; lastY = e.clientY; body.setPointerCapture(e.pointerId); el.classList.add('active'); e.preventDefault(); });
   body.addEventListener('pointermove', e => {
@@ -107,7 +109,7 @@ function buildToggle(btn) {
 }
 function renderToggle(id) {
   togEls[id] && togEls[id].classList.toggle('on', !!state.params[id]);
-  if (id === 'mute') window.cs.muteState(!!state.params.mute);
+  if (id === 'mute') { window.cs.muteState(!!state.params.mute); if (lastOuts) renderSetup(); }
 }
 
 /* ---------- fader ---------- */
@@ -154,7 +156,11 @@ function changed(keepPreset) {
   if (!sendPending) { sendPending = true; requestAnimationFrame(() => { sendPending = false; sendParams(); drawCurve(); }); }
   clearTimeout(saveTimer); saveTimer = setTimeout(save, 400);
 }
-function sendParams() { if (node) node.port.postMessage({ type: 'params', p: state.params }); }
+function sendParams() {
+  if (node) node.port.postMessage({ type: 'params', p: state.params });
+  if (monNode) monNode.port.postMessage({ type: 'params', p: state.params });
+  if (monGain) monGain.gain.setTargetAtTime(phonesGain(), monCtx.currentTime, 0.01);
+}
 function save() { window.cs.saveState(state).catch(() => {}); }
 
 /* ---------- presets ---------- */
@@ -163,33 +169,61 @@ function buildPresets() {
   sel.innerHTML = Object.keys(PRESETS).map(n => `<option value="${n}">${n}</option>`).join('') + '<option value="">Custom</option>';
   sel.addEventListener('change', () => {
     if (!sel.value) return;
-    state.params = Object.assign(DEFAULT_PARAMS(), PRESETS[sel.value]); state.preset = sel.value; renderAll(); changed(true);
+    const keep = { phones: state.params.phones, mute: state.params.mute };
+    state.params = Object.assign(DEFAULT_PARAMS(), PRESETS[sel.value], keep); state.preset = sel.value; renderAll(); changed(true);
   });
 }
 
 /* ---------- audio engine ---------- */
 const lcd = (t, err) => { const e = $('#lcd'); e.textContent = t; e.classList.toggle('err', !!err); };
-// Playback devices that feed a virtual mic: VB-CABLE, or Voicemeeter's virtual inputs.
-const CABLE_RX = /cable input|voicemeeter (aux |vaio3 )?input/i;
-function otherAppsMic(label) {
+// The cable: a playback device whose sound comes back out as a microphone. VB-CABLE, or Voicemeeter's.
+const CABLE_RX = /cable input|virtual mic feed|voicemeeter (aux |vaio3 )?input/i;
+const MIC_NAME = 'Virtual Mic Out', FEED_NAME = 'Virtual Mic Feed';
+function otherAppsMic(label) { // the mic-side name Windows gives the cable before we rename it
   label = label || '';
-  if (/cable input/i.test(label)) return 'CABLE Output';
+  if (/cable input|virtual mic feed/i.test(label)) return 'CABLE Output';
   if (/voicemeeter aux input/i.test(label)) return 'Voicemeeter Out B2';
   if (/voicemeeter vaio3 input/i.test(label)) return 'Voicemeeter Out B3';
   if (/voicemeeter input/i.test(label)) return 'Voicemeeter Out B1';
   return '';
 }
-const MIC_NAME = 'Virtual Mic Out';
-function renderMicHint() {
-  const sel = $('#selOut'); const label = sel.selectedOptions[0] ? sel.selectedOptions[0].textContent : '';
-  const target = otherAppsMic(label), box = $('#micHint');
-  if (!target) { box.hidden = true; return; }
-  const stillThere = lastIns.some(d => (d.label || '').toLowerCase().startsWith(target.toLowerCase()));
-  const renamed = !stillThere && lastIns.some(d => new RegExp(MIC_NAME, 'i').test(d.label || ''));
-  $('#micHintText').textContent = `IN ZOOM / WEBEX / DISCORD PICK MIC: ${renamed ? MIC_NAME : target}`;
-  $('#btnName').hidden = renamed; $('#btnName').dataset.from = target;
-  box.hidden = false;
+const cableOut = () => lastOuts.find(d => /cable input|virtual mic feed/i.test(d.label)) || lastOuts.find(d => CABLE_RX.test(d.label));
+const micSideRenamed = () => lastIns.some(d => (d.label || '').toLowerCase().startsWith(MIC_NAME.toLowerCase()));
+function setCheck(id, ok, text) {
+  const el = $('#' + id); el.classList.toggle('ok', !!ok); el.classList.remove('busy');
+  $('.led', el).className = 'led ' + (ok ? 'green on' : 'amber on');
+  $('.ck-text', el).textContent = text;
 }
+function renderSetup() {
+  const cab = cableOut();
+  // 1. CABLE
+  if (cab) setCheck('ckCable', true, /voicemeeter/i.test(cab.label) ? 'Using Voicemeeter\u2019s cable (VB-CABLE is simpler)' : 'VB-CABLE installed');
+  else setCheck('ckCable', false, 'No virtual cable yet');
+  $('#cableHint').hidden = !!cab;
+  // 2. NAME
+  const from = cab ? otherAppsMic(cab.label) : '';
+  const renamed = micSideRenamed();
+  if (!cab) setCheck('ckName', false, 'Waiting for the cable');
+  else if (renamed) setCheck('ckName', true, `Shows up in Windows as \u201c${MIC_NAME}\u201d`);
+  else setCheck('ckName', false, `Windows still calls it \u201c${from}\u201d`);
+  $('#btnName').dataset.from = from; $('#btnName').disabled = !cab;
+  // 3. ZOOM (Windows default mic)
+  const want = renamed ? MIC_NAME : from;
+  if (!cab) setCheck('ckDefault', false, 'Waiting for the cable');
+  else if (!defaults) setCheck('ckDefault', false, 'Checking Windows\u2026');
+  else if (defaults.error) setCheck('ckDefault', false, 'Could not read the Windows default mic');
+  else {
+    const all = [defaults.console, defaults.multimedia, defaults.communications];
+    const isUs = want && all.every(n => (n || '') === want);
+    if (isUs) setCheck('ckDefault', true, `Windows default mic = \u201c${want}\u201d \u00b7 Zoom / Webex just work`);
+    else setCheck('ckDefault', false, `Windows default mic = \u201c${defaults.communications || defaults.console || 'none'}\u201d`);
+  }
+  $('#btnDefault').disabled = !cab;
+  // TO ZOOM lamp + name in the OUTPUT section
+  $('#ledZoom').classList.toggle('on', !!cab && running && !state.params.mute);
+  $('#zoomText').textContent = cab ? (renamed ? MIC_NAME : from) : 'NO CABLE \u00b7 SEE SETUP';
+}
+async function refreshDefaults() { defaults = await window.cs.audioDefaults(); renderSetup(); }
 async function refreshDevices() {
   const devs = await navigator.mediaDevices.enumerateDevices();
   const ins = devs.filter(d => d.kind === 'audioinput' && d.deviceId !== 'communications');
@@ -200,13 +234,16 @@ async function refreshDevices() {
     if (pick) sel.value = pick.deviceId;
     return pick ? pick.deviceId : '';
   };
-  lastIns = ins;
-  state.inputId = fill($('#selIn'), ins, state.inputId, d => /virtual mic in|virtual usb/i.test(d.label));
-  state.outputId = fill($('#selOut'), outs, state.outputId, d => CABLE_RX.test(d.label));
-  const cable = outs.some(d => CABLE_RX.test(d.label));
-  $('#ledCable').classList.toggle('on', cable);
-  $('#cableHint').hidden = cable;
-  renderMicHint();
+  lastIns = ins; lastOuts = outs;
+  // MIC IN: never offer the cable's own mic side as an input (that would be a loop)
+  const realIns = ins.filter(d => !/cable output|virtual mic out|voicemeeter out/i.test(d.label || ''));
+  state.inputId = fill($('#selIn'), realIns.length ? realIns : ins, state.inputId, d => /virtual mic in|virtual usb/i.test(d.label));
+  // HEADPHONES: never offer the cable as headphones
+  const phones = outs.filter(d => !CABLE_RX.test(d.label || ''));
+  state.phonesId = fill($('#selPhones'), phones.length ? phones : outs, state.phonesId, d => d.deviceId === 'default');
+  // TO ZOOM: found by itself
+  const cab = cableOut(); state.outputId = cab ? cab.deviceId : '';
+  renderSetup();
   return { ins, outs };
 }
 async function unlockLabels() { // first getUserMedia grants device labels
@@ -214,8 +251,41 @@ async function unlockLabels() { // first getUserMedia grants device labels
 }
 async function applySink() {
   if (!ctx || !ctx.setSinkId) return;
-  const id = listen ? '' : (state.outputId === 'default' ? '' : state.outputId);
-  try { await ctx.setSinkId(id); } catch (e) { lcd('OUTPUT DEVICE FAILED', true); }
+  // Main engine goes ONLY to the cable. No cable = silent output (meters still run), never the speakers.
+  try { await ctx.setSinkId(state.outputId ? state.outputId : { type: 'none' }); } catch (e) { lcd('CABLE OUTPUT FAILED', true); }
+  await applyMonSink();
+}
+async function applyMonSink() {
+  if (!monCtx || !monCtx.setSinkId) return;
+  const id = !state.phonesId || state.phonesId === 'default' ? '' : state.phonesId;
+  try { await monCtx.setSinkId(id); } catch (e) { flashLcd('HEADPHONES DEVICE FAILED'); }
+}
+function micConstraints() {
+  const c = { audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 } };
+  if (state.inputId && state.inputId !== 'default') c.audio.deviceId = { exact: state.inputId };
+  return c;
+}
+const phonesGain = () => state.params.phones <= -39.5 ? 0 : Math.pow(10, state.params.phones / 20);
+/* Headphone monitor: a second little engine with the same settings, aimed at your headphones, so you can
+   hear yourself while callers hear you. Two engines = no extra delay for either path. */
+async function startMon() {
+  if (monCtx || !running) return;
+  try {
+    monCtx = new AudioContext({ latencyHint: 'interactive' });
+    await monCtx.audioWorklet.addModule('worklet/strip-processor.js');
+    monStream = await navigator.mediaDevices.getUserMedia(micConstraints());
+    const src = monCtx.createMediaStreamSource(monStream);
+    monNode = new AudioWorkletNode(monCtx, 'strip-processor', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] });
+    monGain = monCtx.createGain(); monGain.gain.value = phonesGain();
+    src.connect(monNode).connect(monGain).connect(monCtx.destination);
+    sendParams(); await applyMonSink(); await monCtx.resume();
+    $('#monText').textContent = 'MON ON';
+  } catch (e) { flashLcd('MONITOR FAILED: ' + (e.message || e.name)); await stopMon(); state.mon = 0; $('#btnMon').classList.remove('on'); }
+}
+async function stopMon() {
+  if (monStream) { monStream.getTracks().forEach(t => t.stop()); monStream = null; }
+  if (monCtx) { try { await monCtx.close(); } catch {} monCtx = null; monNode = null; monGain = null; }
+  $('#monText').textContent = 'MON OFF';
 }
 async function start() {
   if (running) return;
@@ -223,8 +293,7 @@ async function start() {
     lcd('STARTING…');
     ctx = new AudioContext({ latencyHint: 'interactive' });
     await ctx.audioWorklet.addModule('worklet/strip-processor.js');
-    const constraints = { audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 } };
-    if (state.inputId && state.inputId !== 'default') constraints.audio.deviceId = { exact: state.inputId };
+    const constraints = micConstraints();
     try { stream = await navigator.mediaDevices.getUserMedia(constraints); }
     catch (e) { delete constraints.audio.deviceId; stream = await navigator.mediaDevices.getUserMedia(constraints); lcd('SAVED MIC MISSING · USING DEFAULT', true); }
     const track = stream.getAudioTracks()[0];
@@ -240,12 +309,14 @@ async function start() {
     $('#btnPower').classList.add('on'); $('.led', $('#btnPower')).classList.add('on');
     const lat = Math.round(((ctx.baseLatency || 0) + (ctx.outputLatency || 0)) * 1000);
     runLcd = `RUN · ${(ctx.sampleRate / 1000).toFixed(1)} kHz · ${lat} ms`; lcd(runLcd); drawCurve();
+    if (state.mon) await startMon();
+    renderSetup();
   } catch (e) {
     lcd('MIC ERROR: ' + (e.message || e.name), true); await stop();
   }
 }
 async function stop() {
-  running = false;
+  running = false; await stopMon();
   if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
   if (ctx) { try { await ctx.close(); } catch {} ctx = null; node = null; }
   $('#btnPower').classList.remove('on'); $('.led', $('#btnPower')).classList.remove('on');
@@ -470,7 +541,7 @@ async function boot() {
   version = await window.cs.version(); $('#verLabel').textContent = 'v' + version;
   $$('[data-knob]').forEach(buildKnob); $$('[data-tog]').forEach(buildToggle); buildFader(); buildPresets();
   const saved = await window.cs.loadState();
-  if (saved && saved.params) { state.params = Object.assign(DEFAULT_PARAMS(), saved.params); state.inputId = saved.inputId || ''; state.outputId = saved.outputId || ''; state.preset = saved.preset ?? 'Voice – Natural'; }
+  if (saved && saved.params) { state.params = Object.assign(DEFAULT_PARAMS(), saved.params); state.inputId = saved.inputId || ''; state.phonesId = saved.phonesId || ''; state.mon = saved.mon ? 1 : 0; state.preset = saved.preset ?? 'Voice – Natural'; }
   state.params.mute = 0; // never start muted
   renderAll();
   // MUTE from the tray or the global Ctrl+Shift+M
@@ -491,13 +562,18 @@ async function boot() {
   };
   // NAME IT: rename the cable's recording side to "Virtual Mic Out" so Zoom / Webex show that name
   $('#btnName').onclick = async () => {
-    const b = $('#btnName'), from = b.dataset.from; b.disabled = true; lcd(`RENAMING "${from}"…`);
+    const b = $('#btnName'), from = b.dataset.from; if (!from) return;
+    $('#ckName').classList.add('busy'); lcd(`RENAMING \u201c${from}\u201d \u2192 \u201c${MIC_NAME}\u201d\u2026`);
     try {
-      const r = await window.cs.renameMic(from, MIC_NAME); await refreshDevices();
+      const r = await window.cs.renameMic(from, MIC_NAME, 'capture');
+      const cab = cableOut(); const feedFrom = cab ? (cab.label || '').replace(/\s*\(.*$/, '') : '';
+      if (cab && /^cable input$/i.test(feedFrom)) { try { await window.cs.renameMic(feedFrom, FEED_NAME, 'render'); } catch {} }
       const ok = /RENAMED [1-9]/.test(r);
-      lcd(ok ? `DONE · PICK "${MIC_NAME.toUpperCase()}" IN ZOOM / WEBEX (RESTART THEM IF NOT LISTED)` : `RENAME: "${from}" NOT FOUND IN WINDOWS`, !ok);
+      await refreshDevices(); await refreshDefaults();
+      if (ok) flashLcd(`DONE \u00b7 WINDOWS NOW CALLS IT \u201c${MIC_NAME.toUpperCase()}\u201d`, 4000);
+      else lcd(`RENAME: \u201c${from}\u201d NOT FOUND IN WINDOWS`, true);
     } catch (e) { lcd('RENAME FAILED: ' + (e.message || e).toString().slice(0, 60), true); }
-    b.disabled = false;
+    renderSetup();
   };
   // BOOT: start with Windows, hidden in the tray
   $('#btnBoot').classList.toggle('on', !!(await window.cs.getAutostart()));
@@ -509,28 +585,40 @@ async function boot() {
   $('#cableLink').onclick = e => { e.preventDefault(); window.cs.openExternal('https://vb-audio.com/Cable/'); };
   window.cs.onCableProgress(s => lcd({ download: 'DOWNLOADING VB-CABLE…', extract: 'UNPACKING…', launch: 'OPENING VB-CABLE SETUP · CLICK YES' }[s] || s));
   $('#btnCable').onclick = async () => {
-    const b = $('#btnCable'); b.disabled = true;
+    const b = $('#btnCable'); b.disabled = true; $('#ckCable').classList.add('busy');
     try {
       await window.cs.installCable();
       lcd('IN VB-CABLE: CLICK "INSTALL DRIVER", THEN RESTART PC');
-      $('#cableHintText').textContent = 'VB-CABLE setup is open. Click “Install Driver”, then restart the PC. When you come back, this app picks CABLE Input by itself.';
+      $('#cableHintText').textContent = 'VB-CABLE setup is open. Click “Install Driver”, then restart the PC. When you come back, this app finds the cable by itself.';
       let tries = 0; const poll = setInterval(async () => {
         const { outs } = await refreshDevices();
-        const c = outs.find(d => CABLE_RX.test(d.label));
-        if (c) { clearInterval(poll); state.outputId = c.deviceId; $('#selOut').value = c.deviceId; save(); applySink(); renderMicHint(); lcd('CABLE FOUND · SEND TO = CABLE INPUT'); }
+        const c = cableOut();
+        if (c) { clearInterval(poll); state.outputId = c.deviceId; save(); applySink(); renderSetup(); flashLcd('CABLE FOUND · NOW PRESS NAME IT', 4000); }
         else if (++tries > 60) clearInterval(poll);
       }, 5000);
     } catch (e) { lcd('CABLE INSTALL FAILED: ' + (e.message || e), true); b.disabled = false; }
   };
   $('#btnPower').onclick = () => running ? stop() : start();
-  $('#btnListen').onclick = () => { listen = !listen; $('#btnListen').classList.toggle('on', listen); applySink(); };
   $('#selIn').onchange = () => { state.inputId = $('#selIn').value; save(); if (running) restart(); };
-  $('#selOut').onchange = () => { state.outputId = $('#selOut').value; save(); applySink(); renderMicHint(); };
-  navigator.mediaDevices.addEventListener('devicechange', () => refreshDevices());
+  $('#selPhones').onchange = () => { state.phonesId = $('#selPhones').value; save(); applyMonSink(); };
+  $('#btnMon').classList.toggle('on', !!state.mon);
+  $('#btnMon').onclick = async () => { state.mon = state.mon ? 0 : 1; $('#btnMon').classList.toggle('on', !!state.mon); save(); if (state.mon) await startMon(); else await stopMon(); };
+  $('#btnDefault').onclick = async () => {
+    const cab = cableOut(); if (!cab) return;
+    const want = micSideRenamed() ? MIC_NAME : otherAppsMic(cab.label);
+    $('#ckDefault').classList.add('busy'); lcd(`TELLING WINDOWS: DEFAULT MIC = \u201c${want}\u201d\u2026`);
+    prevDefault = defaults && defaults.communications || '';
+    const r = await window.cs.audioSetDefault(want);
+    await refreshDefaults();
+    if (/^SET /.test(r)) flashLcd('DONE \u00b7 ZOOM / WEBEX NOW USE THE STRIP BY DEFAULT', 4000);
+    else lcd(/NOTFOUND/.test(r) ? `WINDOWS CANNOT SEE \u201c${want}\u201d YET \u00b7 RESTART THE PC` : 'COULD NOT SET DEFAULT: ' + String(r).slice(0, 50), true);
+  };
+  navigator.mediaDevices.addEventListener('devicechange', () => { refreshDevices(); clearTimeout(setupTimer); setupTimer = setTimeout(refreshDefaults, 1500); });
   window.addEventListener('resize', fit); new ResizeObserver(fit).observe(strip); fit();
   requestAnimationFrame(loop);
   await unlockLabels(); await refreshDevices();
   await start();
+  refreshDefaults();
   setupUpdates();
 }
 boot();

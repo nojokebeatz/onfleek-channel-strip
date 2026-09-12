@@ -16,7 +16,7 @@ const statePath = () => path.join(app.getPath('userData'), 'state.json');
 
 function createWindow() {
   win = new BrowserWindow({
-    width: 600, height: 1010, minWidth: 340, minHeight: 600, show: !startHidden,
+    width: 600, height: 1060, minWidth: 340, minHeight: 600, show: !startHidden,
     frame: false, backgroundColor: '#121315', title: 'OnFleek Channel Strip',
     icon: path.join(__dirname, '..', 'build', 'icon.png'),
     webPreferences: {
@@ -92,11 +92,12 @@ const runPSOut = (args) => new Promise((resolve, reject) => {
   let out = '', err = ''; p.stdout.on('data', d => out += d); p.stderr.on('data', d => err += d);
   p.on('close', code => code === 0 ? resolve(out.trim()) : reject(new Error((err || out).trim() || ('exit ' + code))));
 });
-ipcMain.handle('mic:rename', async (e, from, to) => {
+ipcMain.handle('mic:rename', async (e, from, to, flow) => {
   const esc = s => String(s).replace(/'/g, "''").replace(/[\r\n]/g, '');
+  const branch = flow === 'render' ? 'Render' : 'Capture';   // Capture = mic side, Render = speaker side
   const script = `
 $desc='{a45c254e-df1c-4efd-8020-67d146a850e0},2'; $fn='{a45c254e-df1c-4efd-8020-67d146a850e0},14'; $adap='{b3f8fa53-0004-438e-9003-51a46e139bfc},6'
-$root='SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\MMDevices\\Audio\\Capture'
+$root='SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\MMDevices\\Audio\\${branch}'
 $rights=[System.Security.AccessControl.RegistryRights]::SetValue -bor [System.Security.AccessControl.RegistryRights]::QueryValues
 $cap=[Microsoft.Win32.Registry]::LocalMachine.OpenSubKey($root); $n=0
 foreach ($k in $cap.GetSubKeyNames()) {
@@ -113,6 +114,30 @@ foreach ($k in $cap.GetSubKeyNames()) {
   const file = path.join(app.getPath('temp'), 'onfleek-rename-mic.ps1');
   fs.writeFileSync(file, script, 'utf8');
   return await runPSOut(['-File', file]);
+});
+
+/* ---------- Windows default microphone (so Zoom / Webex / Teams need no clicks) ----------
+   src/ps/audio-default.ps1 talks to the same COM interface the Sound control panel uses.
+   'get' -> {console, multimedia, communications} short names; 'set <name>' -> all three roles. */
+// The script ships inside app.asar, which powershell.exe cannot read, so copy it out once per version.
+const defaultsScript = () => {
+  const dst = path.join(app.getPath('userData'), 'audio-default.ps1');
+  try {
+    const body = fs.readFileSync(path.join(__dirname, 'ps', 'audio-default.ps1'), 'utf8');
+    if (!fs.existsSync(dst) || fs.readFileSync(dst, 'utf8') !== body) fs.writeFileSync(dst, body, 'utf8');
+  } catch (e) { /* fall through; the run will report the error */ }
+  return dst;
+};
+const getDefaults = async () => {
+  try { const out = await runPSOut(['-File', defaultsScript(), 'get']); return JSON.parse(out.trim().split(/\r?\n/).pop()); }
+  catch (e) { return { error: String(e.message || e).slice(0, 120) }; }
+};
+ipcMain.handle('audio:defaults', getDefaults);
+// Dev helper: --selftest runs the packaged PowerShell path and prints the result, then quits.
+if (process.argv.includes('--selftest')) app.whenReady().then(async () => { process.stdout.write('SELFTEST ' + JSON.stringify(await getDefaults()) + '\n'); app.exit(0); });
+ipcMain.handle('audio:setDefault', async (e, name) => {
+  try { return await runPSOut(['-File', defaultsScript(), 'set', String(name)]); }
+  catch (e) { return 'FAILED ' + String(e.message || e).slice(0, 120); }
 });
 
 ipcMain.handle('state:load', () => {

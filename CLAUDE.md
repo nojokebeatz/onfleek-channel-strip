@@ -55,6 +55,17 @@ Closing the window hides it (processing continues); Quit is in the tray menu. `C
 shortcut for MUTE. BOOT = `app.setLoginItemSettings({openAtLogin, args:['--hidden']})`; `--hidden` starts
 with the window not shown. Mute never persists across launches (reset to 0 on load).
 
+## 2.0.0 = Voicemeeter replacement (owner: one mic, no PC sound, hates A1/B1/VAIO labels)
+- `src/ps/audio-default.ps1` = IPolicyConfig COM (CLSID 870af99c-…) + IMMDeviceEnumerator via Add-Type.
+  `get` prints JSON of the three default-capture roles; `set <DeviceDesc>` sets all three. Verified on this
+  box: the call goes through (unplugged endpoint returns 0x80070490 cleanly). Needs an ACTIVE endpoint.
+- Two engines: `ctx` (mic → worklet → cable sink, or `{type:'none'}` when no cable) and `monCtx`
+  (mic → worklet → GainNode(PHONES) → headphones sink). Params are posted to both. Meters from `ctx` only.
+- `cableOut()` finds the cable playback device by label; SEND TO dropdown is gone. Cable mic side is
+  filtered out of MIC IN, cable filtered out of HEADPHONES.
+- NAME IT renames Capture "CABLE Output"→"Virtual Mic Out" AND Render "CABLE Input"→"Virtual Mic Feed"
+  (`mic:rename` takes a flow arg). `CABLE_RX` must keep matching "virtual mic feed".
+
 ## Traps
 - Chromium hides device names until the mic permission is granted once — `unlockLabels()` does that.
 - `AudioContext.setSinkId('')` = default output; `'default'` id must be mapped to `''`.

@@ -23,23 +23,23 @@
     <div class="col-main">
 
       <section class="sec sec-patch">
-        <div class="sec-head"><span class="sec-title">PATCH</span>
-          <div class="sec-btns"><button class="pwr" id="btnPower"><i class="led green"></i>ON</button></div>
+        <div class="sec-head"><span class="sec-title">SETUP</span>
+          <div class="sec-btns"><button class="tog" data-lamp="#c8ff5a" id="btnBoot" title="Start with Windows, hidden in the tray">BOOT</button><button class="pwr" id="btnPower"><i class="led green"></i>ON</button></div>
         </div>
         <div class="patchrow">
           <label class="patch"><span>MIC IN</span><select id="selIn"></select></label>
-          <label class="patch"><span>SEND TO</span><select id="selOut"></select></label>
+          <label class="patch"><span>HEADPHONES</span><select id="selPhones"></select></label>
         </div>
         <div class="patchrow status">
           <span class="lcd" id="lcd">STANDBY</span>
-          <span class="ledlabel"><i class="led amber" id="ledCable"></i>CABLE</span>
-          <button class="tog" data-lamp="#c8ff5a" id="btnListen">LISTEN</button>
-          <button class="tog" data-lamp="#c8ff5a" id="btnBoot" title="Start with Windows, hidden in the tray">BOOT</button>
         </div>
-        <div class="micline" id="micHint" hidden><span id="micHintText"></span><button class="hintbtn small" id="btnName" hidden>NAME IT “VIRTUAL MIC OUT”</button></div>
+        <div class="checklist">
+          <div class="check" id="ckCable"><i class="led amber"></i><span class="ck-name">CABLE</span><span class="ck-text">Looking…</span><button class="hintbtn small" id="btnCable">INSTALL CABLE</button></div>
+          <div class="check" id="ckName"><i class="led amber"></i><span class="ck-name">NAME</span><span class="ck-text">Looking…</span><button class="hintbtn small" id="btnName">NAME IT</button></div>
+          <div class="check" id="ckDefault"><i class="led amber"></i><span class="ck-name">ZOOM</span><span class="ck-text">Looking…</span><button class="hintbtn small" id="btnDefault">MAKE DEFAULT</button></div>
+        </div>
         <div class="hint" id="cableHint" hidden>
-          <button class="hintbtn" id="btnCable">INSTALL CABLE</button>
-          <span id="cableHintText">No virtual cable found. This gets the free <a href="#" id="cableLink">VB-CABLE</a> (donationware by vb-audio.com), opens its setup, you click “Install Driver”, then restart the PC. After that pick “CABLE Input” under SEND TO, and “CABLE Output” as the mic in your other apps. Have Voicemeeter? Pick “Voicemeeter Input” instead and use “Voicemeeter Out B1” as the mic.</span>
+          <span id="cableHintText">INSTALL CABLE gets the free <a href="#" id="cableLink">VB-CABLE</a> (donationware by vb-audio.com) and opens its setup. Click “Yes”, then “Install Driver”, then restart the PC. That is the only outside part. Everything else lives here.</span>
         </div>
       </section>
 
@@ -129,6 +129,12 @@
             <button class="tog wide" data-tog="bypass" data-lamp="#ff3b30">BYPASS</button>
             <button class="tog wide" data-tog="mute" data-lamp="#ff3b30" title="Ctrl+Shift+M works in any app">MUTE</button>
           </div>
+        </div>
+        <div class="knobrow masters">
+          <div class="slot tozoom"><span class="ledlabel big"><i class="led green" id="ledZoom"></i>TO ZOOM</span><span class="tiny" id="zoomText">Virtual Mic Out</span><span class="tiny">WHAT CALLERS HEAR</span></div>
+          <div class="knob c-black" data-knob="phones" data-label="PHONES"></div>
+          <div class="slot"><button class="tog" id="btnMon" data-lamp="#c8ff5a" title="Hear yourself in the headphones">MON</button><span class="tiny">HEADPHONES</span></div>
+          <div class="slot"><span class="tiny" id="monText">MON OFF</span></div>
         </div>
       </section>
 
