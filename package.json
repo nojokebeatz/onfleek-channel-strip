@@ -1,7 +1,7 @@
 {
   "name": "onfleek-channel-strip",
   "productName": "OnFleek Channel Strip",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "SSL-style vocal channel strip for your USB microphone (gate/expander, compressor, 4-band EQ, filters, fader)",
   "main": "src/main.js",
   "author": "OnFleek",
@@ -38,10 +38,20 @@
     },
     "portable": {
       "artifactName": "OnFleek-Channel-Strip-Portable-${version}.exe"
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "nojokebeatz",
+        "repo": "onfleek-channel-strip"
+      }
+    ]
   },
   "devDependencies": {
     "electron": "^44.3.0",
     "electron-builder": "^26.15.3"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
   }
 }

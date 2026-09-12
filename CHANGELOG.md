@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.0 — 2026-09-12
+- Fix: device dropdown lists were dark text on a dark box. Now light text, dark list.
+- Self-update: the installed app downloads new versions from GitHub in the background and shows
+  "RESTART TO UPDATE". The portable exe shows "GET IT" and opens the download page.
+- Voicemeeter counts as a cable: SEND TO auto-picks "Voicemeeter Input" when VB-CABLE is absent, and
+  the panel shows which mic to pick in other apps (CABLE Output / Voicemeeter Out B1).
+
 ## 1.1.0 — 2026-09-12
 - INSTALL CABLE button: fetches the official VB-CABLE package from vb-audio.com, unpacks it and opens
   its setup (one admin "Yes", click "Install Driver", restart). The app then picks CABLE Input itself.

@@ -165,7 +165,21 @@ function buildPresets() {
 
 /* ---------- audio engine ---------- */
 const lcd = (t, err) => { const e = $('#lcd'); e.textContent = t; e.classList.toggle('err', !!err); };
-function isCable(label) { return /cable input|vb-audio|voicemeeter|virtual cable|virtual audio/i.test(label || ''); }
+// Playback devices that feed a virtual mic: VB-CABLE, or Voicemeeter's virtual inputs.
+const CABLE_RX = /cable input|voicemeeter (aux |vaio3 )?input/i;
+function otherAppsMic(label) {
+  label = label || '';
+  if (/cable input/i.test(label)) return 'CABLE Output';
+  if (/voicemeeter aux input/i.test(label)) return 'Voicemeeter Out B2';
+  if (/voicemeeter vaio3 input/i.test(label)) return 'Voicemeeter Out B3';
+  if (/voicemeeter input/i.test(label)) return 'Voicemeeter Out B1';
+  return '';
+}
+function renderMicHint() {
+  const sel = $('#selOut'); const label = sel.selectedOptions[0] ? sel.selectedOptions[0].textContent : '';
+  const m = otherAppsMic(label);
+  $('#micHint').textContent = m ? `IN ZOOM / DISCORD / OBS PICK MIC: ${m}` : '';
+}
 async function refreshDevices() {
   const devs = await navigator.mediaDevices.enumerateDevices();
   const ins = devs.filter(d => d.kind === 'audioinput' && d.deviceId !== 'communications');
@@ -177,10 +191,11 @@ async function refreshDevices() {
     return pick ? pick.deviceId : '';
   };
   state.inputId = fill($('#selIn'), ins, state.inputId, d => /virtual mic|virtual usb/i.test(d.label));
-  state.outputId = fill($('#selOut'), outs, state.outputId, d => /cable input/i.test(d.label));
-  const cable = outs.some(d => isCable(d.label));
+  state.outputId = fill($('#selOut'), outs, state.outputId, d => CABLE_RX.test(d.label));
+  const cable = outs.some(d => CABLE_RX.test(d.label));
   $('#ledCable').classList.toggle('on', cable);
   $('#cableHint').hidden = cable;
+  renderMicHint();
   return { ins, outs };
 }
 async function unlockLabels() { // first getUserMedia grants device labels
@@ -312,19 +327,31 @@ function fit() {
   strip.style.transform = `translateX(-50%) scale(${scaleNow})`;
 }
 
-/* ---------- update check ---------- */
+/* ---------- updates ---------- */
 const REPO = 'nojokebeatz/onfleek-channel-strip';
 function cmpVer(a, b) { const pa = a.split('.').map(Number), pb = b.split('.').map(Number); for (let i = 0; i < 3; i++) { if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) - (pb[i] || 0); } return 0; }
-async function checkUpdate() {
+function showUpdateBar(text, btnText, onClick) {
+  $('#updateText').textContent = text; const b = $('#updateBtn');
+  b.textContent = btnText; b.hidden = !onClick; b.onclick = onClick || null;
+  $('#updateBar').hidden = false; fit();
+}
+async function checkUpdateManual() { // portable / dev: look at GitHub, offer the download page
   try {
     const r = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, { headers: { Accept: 'application/vnd.github+json' } });
     if (!r.ok) return; const j = await r.json(); const latest = (j.tag_name || '').replace(/^v/, '');
-    if (latest && cmpVer(latest, version) > 0) {
-      $('#updateText').textContent = `NEW VERSION ${latest} IS READY`;
-      $('#updateBar').hidden = false; $('#updateBtn').onclick = () => window.cs.openExternal(j.html_url);
-      fit();
-    }
+    if (latest && cmpVer(latest, version) > 0) showUpdateBar(`NEW VERSION ${latest} IS READY`, 'GET IT', () => window.cs.openExternal(j.html_url));
   } catch {}
+}
+async function setupUpdates() {
+  const mode = await window.cs.updateMode();
+  if (mode !== 'auto') { checkUpdateManual(); setInterval(checkUpdateManual, 3600 * 1000); return; }
+  window.cs.onUpdateEvent(d => {
+    if (d.type === 'available') showUpdateBar(`NEW VERSION ${d.version} · DOWNLOADING…`, '', null);
+    else if (d.type === 'progress') showUpdateBar(`NEW VERSION · DOWNLOADING ${d.percent}%`, '', null);
+    else if (d.type === 'downloaded') showUpdateBar(`VERSION ${d.version} IS READY`, 'RESTART TO UPDATE', () => window.cs.updateInstall());
+    else if (d.type === 'error') console.warn('updater:', d.message);
+  });
+  window.cs.updateCheck(); setInterval(() => window.cs.updateCheck(), 3600 * 1000);
 }
 
 /* ---------- boot ---------- */
@@ -345,8 +372,8 @@ async function boot() {
       $('#cableHintText').textContent = 'VB-CABLE setup is open. Click “Install Driver”, then restart the PC. When you come back, this app picks CABLE Input by itself.';
       let tries = 0; const poll = setInterval(async () => {
         const { outs } = await refreshDevices();
-        const c = outs.find(d => /cable input/i.test(d.label));
-        if (c) { clearInterval(poll); state.outputId = c.deviceId; $('#selOut').value = c.deviceId; save(); applySink(); lcd('CABLE FOUND · SEND TO = CABLE INPUT'); }
+        const c = outs.find(d => CABLE_RX.test(d.label));
+        if (c) { clearInterval(poll); state.outputId = c.deviceId; $('#selOut').value = c.deviceId; save(); applySink(); renderMicHint(); lcd('CABLE FOUND · SEND TO = CABLE INPUT'); }
         else if (++tries > 60) clearInterval(poll);
       }, 5000);
     } catch (e) { lcd('CABLE INSTALL FAILED: ' + (e.message || e), true); b.disabled = false; }
@@ -354,13 +381,13 @@ async function boot() {
   $('#btnPower').onclick = () => running ? stop() : start();
   $('#btnListen').onclick = () => { listen = !listen; $('#btnListen').classList.toggle('on', listen); applySink(); };
   $('#selIn').onchange = () => { state.inputId = $('#selIn').value; save(); if (running) restart(); };
-  $('#selOut').onchange = () => { state.outputId = $('#selOut').value; save(); applySink(); };
+  $('#selOut').onchange = () => { state.outputId = $('#selOut').value; save(); applySink(); renderMicHint(); };
   navigator.mediaDevices.addEventListener('devicechange', () => refreshDevices());
   window.addEventListener('resize', fit); new ResizeObserver(fit).observe(strip); fit();
   requestAnimationFrame(loop);
   await unlockLabels(); await refreshDevices();
   await start();
-  checkUpdate(); setInterval(checkUpdate, 3600 * 1000);
+  setupUpdates();
 }
 boot();
 })();

@@ -21,7 +21,7 @@
 npm test                                   # DSP checks
 npx electron . --screenshot=C:\Temp\cs.png # look at the UI without a mic
 npm run dist                               # dist\OnFleek-Channel-Strip-Setup-<ver>.exe + -Portable-<ver>.exe
-gh release create v<ver> dist\*.exe --title "v<ver>" --notes-file <notes>
+# release = tag v<ver> + upload Setup exe, Portable exe, latest.yml AND the .blockmap (electron-updater needs latest.yml)
 ```
 
 ## How the routing works (tell the user in plain words)
@@ -35,6 +35,13 @@ VB-CABLE package in another software installation procedure without Author agree
 bundled in our installer. The INSTALL CABLE button (`cable:install` in main.js) downloads the unmodified
 zip from vb-audio.com at click time, unpacks it in %TEMP%, and opens THEIR setup elevated. No open-source
 alternative exists that Microsoft has signed (unsigned kernel drivers will not load on Windows 10/11).
+
+## Self-update (electron-updater, added 1.2.0)
+`build.publish` points at the GitHub repo; electron-builder writes `resources/app-update.yml` into the
+installed app and `dist/latest.yml` next to the exes. The installed (NSIS) app checks GitHub Releases on
+launch + hourly, downloads in the background, and `quitAndInstall` on the RESTART TO UPDATE button.
+Portable builds (`PORTABLE_EXECUTABLE_FILE` set) and dev runs use the plain GitHub API check + GET IT link.
+⛔ A release WITHOUT `latest.yml` is invisible to installed apps. Upload Setup exe + blockmap + latest.yml.
 
 ## Traps
 - Chromium hides device names until the mic permission is granted once — `unlockLabels()` does that.

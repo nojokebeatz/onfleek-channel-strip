@@ -58,6 +58,26 @@ ipcMain.handle('state:save', (e, state) => {
   return true;
 });
 ipcMain.handle('app:version', () => app.getVersion());
+
+// Self-update: installed (NSIS) builds download the new Setup from GitHub Releases in the background
+// and install on "RESTART TO UPDATE". Portable builds and dev runs report 'manual' so the panel falls
+// back to the plain GitHub check + download link.
+const isPortable = !!process.env.PORTABLE_EXECUTABLE_FILE;
+let updater = null;
+if (app.isPackaged && !isPortable) {
+  try {
+    updater = require('electron-updater').autoUpdater;
+    updater.autoDownload = true; updater.autoInstallOnAppQuit = true; updater.allowPrerelease = false;
+    const tell = (type, data) => win && !win.isDestroyed() && win.webContents.send('update:event', { type, ...data });
+    updater.on('update-available', (i) => tell('available', { version: i.version }));
+    updater.on('download-progress', (p) => tell('progress', { percent: Math.round(p.percent) }));
+    updater.on('update-downloaded', (i) => tell('downloaded', { version: i.version }));
+    updater.on('error', (e) => tell('error', { message: String(e && e.message || e).slice(0, 120) }));
+  } catch (e) { updater = null; }
+}
+ipcMain.handle('update:mode', () => updater ? 'auto' : 'manual');
+ipcMain.handle('update:check', async () => { if (!updater) return false; try { await updater.checkForUpdates(); } catch (e) { /* reported via 'error' */ } return true; });
+ipcMain.handle('update:install', () => { if (updater) setImmediate(() => updater.quitAndInstall(false, true)); });
 ipcMain.handle('shell:open', (e, url) => { if (/^https?:\/\//.test(url)) shell.openExternal(url); });
 // VB-CABLE helper. License allows copying the package AS IS but forbids folding it into another
 // installer, so we fetch the unmodified zip from vb-audio.com at click time and open THEIR setup.
