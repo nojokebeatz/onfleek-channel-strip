@@ -191,7 +191,14 @@ function otherAppsMic(label) { // the mic-side name Windows gives the cable befo
   return '';
 }
 const cableOut = () => lastOuts.find(d => /cable input|virtual mic feed/i.test(d.label)) || lastOuts.find(d => CABLE_RX.test(d.label));
-const micSideRenamed = () => lastIns.some(d => (d.label || '').toLowerCase().startsWith(MIC_NAME.toLowerCase()));
+// Which maker a device belongs to, read from the "(...)" at the end of its Windows name.
+const adapterOf = (label) => { const m = String(label || '').match(/\(([^()]*)\)\s*$/); return m ? m[1].trim() : ''; };
+const family = (label) => { const a = adapterOf(label); return /virtual cable/i.test(a) ? 'VB-CABLE' : /voicemeeter/i.test(a) ? 'Voicemeeter' : a; };
+const familyKey = (label) => { const f = family(label); return f === 'VB-CABLE' ? 'Virtual Cable' : f; };   // substring the helper scripts match on the adapter name
+const isMicName = (d) => (d.label || '').toLowerCase().startsWith(MIC_NAME.toLowerCase());
+// The name only counts when it sits on the SAME cable we feed. A leftover "Virtual Mic Out" on another maker is a stray.
+const micSideRenamed = () => { const cab = cableOut(); return !!cab && lastIns.some(d => isMicName(d) && family(d.label) === family(cab.label)); };
+const strayMics = () => { const cab = cableOut(); return lastIns.filter(d => isMicName(d) && (!cab || family(d.label) !== family(cab.label))); };
 function setCheck(id, ok, text) {
   const el = $('#' + id); el.classList.toggle('ok', !!ok); el.classList.remove('busy');
   $('.led', el).className = 'led ' + (ok ? 'green on' : 'amber on');
@@ -210,7 +217,8 @@ function renderSetup() {
   const renamed = micSideRenamed();
   if (!cab) setCheck('ckName', false, 'Waiting for the cable (row above).');
   else if (renamed) setCheck('ckName', true, `Apps now see it as “${MIC_NAME}”.`);
-  else setCheck('ckName', false, `Apps see it as “${from}”. Press NAME IT to call it “${MIC_NAME}”.`);
+  else if (strayMics().length) setCheck('ckName', false, `A different device (${family(strayMics()[0].label)}) is wearing the name "${MIC_NAME}". Press NAME IT to move the name onto the ${family(cab.label)} cable.`);
+  else setCheck('ckName', false, `Apps see it as "${from}". Press NAME IT to call it "${MIC_NAME}".`);
   $('#btnName').dataset.from = from; $('#btnName').disabled = !cab;
   // 3. ZOOM (Windows default mic)
   const want = renamed ? MIC_NAME : from;
@@ -219,9 +227,16 @@ function renderSetup() {
   else if (defaults.error) setCheck('ckDefault', false, 'Could not read the Windows default mic');
   else {
     const all = [defaults.console, defaults.multimedia, defaults.communications];
-    const isUs = want && all.every(n => (n || '') === want);
+    const cabFam = family(cab.label);
+    const fams = [defaults.consoleAdapter, defaults.multimediaAdapter, defaults.communicationsAdapter].map(a => family('(' + (a || '') + ')'));
+    const isUs = want && all.every(n => (n || '') === want) && (!renamed || fams.every(f => f === cabFam));
     if (isUs) setCheck('ckDefault', true, `Windows default mic = “${want}”. Meet / Zoom / Webex use it on their own.`);
-    else setCheck('ckDefault', false, `Windows default mic is still “${defaults.communications || defaults.console || 'none'}”. Press MAKE DEFAULT so Meet / Zoom pick the strip by themselves.`);
+    else {
+      const cur = defaults.communications || defaults.console || 'none';
+      const curFam = family('(' + (defaults.communicationsAdapter || defaults.consoleAdapter || '') + ')');
+      if (cur === want && curFam !== cabFam) setCheck('ckDefault', false, `Windows points at a different "${want}" (${curFam}), not the ${cabFam} one. Press MAKE DEFAULT to fix.`);
+      else setCheck('ckDefault', false, `Windows default mic is still "${cur}". Press MAKE DEFAULT so Meet / Zoom pick the strip by themselves.`);
+    }
   }
   $('#btnDefault').disabled = !cab;
   // TO ZOOM lamp + name in the OUTPUT section
@@ -241,10 +256,10 @@ async function refreshDevices() {
   };
   lastIns = ins; lastOuts = outs;
   // MIC IN: never offer the cable's own mic side as an input (that would be a loop)
-  const realIns = ins.filter(d => !/cable output|virtual mic out|voicemeeter out/i.test(d.label || ''));
+  const realIns = ins.filter(d => !/cable output|virtual mic|voicemeeter/i.test(d.label || ''));
   state.inputId = fill($('#selIn'), realIns.length ? realIns : ins, state.inputId, d => /virtual mic in|virtual usb/i.test(d.label));
   // HEADPHONES: never offer the cable as headphones
-  const phones = outs.filter(d => !CABLE_RX.test(d.label || ''));
+  const phones = outs.filter(d => !CABLE_RX.test(d.label || '') && !/voicemeeter|virtual cable/i.test(d.label || ''));
   state.phonesId = fill($('#selPhones'), phones.length ? phones : outs, state.phonesId, d => d.deviceId === 'default');
   // TO ZOOM: found by itself
   const cab = cableOut(); state.outputId = cab ? cab.deviceId : '';
@@ -603,9 +618,11 @@ async function boot() {
     const b = $('#btnName'), from = b.dataset.from; if (!from) return;
     $('#ckName').classList.add('busy'); lcd(`RENAMING \u201c${from}\u201d \u2192 \u201c${MIC_NAME}\u201d\u2026`);
     try {
-      const r = await window.cs.renameMic(from, MIC_NAME, 'capture');
-      const cab = cableOut(); const feedFrom = cab ? (cab.label || '').replace(/\s*\(.*$/, '') : '';
-      if (cab && /^cable input$/i.test(feedFrom)) { try { await window.cs.renameMic(feedFrom, FEED_NAME, 'render'); } catch {} }
+      const cab = cableOut(); const key = cab ? familyKey(cab.label) : '';
+      for (const st of strayMics()) { try { await window.cs.renameMic(MIC_NAME, 'Unused Virtual Mic', 'capture', familyKey(st.label)); } catch {} }
+      const r = await window.cs.renameMic(from, MIC_NAME, 'capture', key);
+      const feedFrom = cab ? (cab.label || '').replace(/\s*\(.*$/, '') : '';
+      if (cab && /^cable input$/i.test(feedFrom)) { try { await window.cs.renameMic(feedFrom, FEED_NAME, 'render', key); } catch {} }
       const ok = /RENAMED [1-9]/.test(r);
       await refreshDevices(); await refreshDefaults();
       if (ok) flashLcd(`DONE \u00b7 WINDOWS NOW CALLS IT \u201c${MIC_NAME.toUpperCase()}\u201d`, 4000);
@@ -664,7 +681,7 @@ async function boot() {
     const want = micSideRenamed() ? MIC_NAME : otherAppsMic(cab.label);
     $('#ckDefault').classList.add('busy'); lcd(`TELLING WINDOWS: DEFAULT MIC = \u201c${want}\u201d\u2026`);
     const before = defaults && defaults.communications || '';
-    const r = await window.cs.audioSetDefault(want);
+    const r = await window.cs.audioSetDefault(want, familyKey(cab.label));
     await refreshDefaults();
     if (/^SET /.test(r)) {
       // Remember: your real mic comes back when this app quits, and the strip takes over again on start.
@@ -685,7 +702,8 @@ async function boot() {
     const want = micSideRenamed() ? MIC_NAME : otherAppsMic(cableOut().label);
     const all = [defaults.console, defaults.multimedia, defaults.communications];
     window.cs.rememberDefault(state.prevDefaultMic, want);
-    if (!all.every(n => (n || '') === want)) { const r = await window.cs.audioSetDefault(want); if (/^SET /.test(r)) await refreshDefaults(); }
+    const fams = [defaults.consoleAdapter, defaults.multimediaAdapter, defaults.communicationsAdapter].map(a => family('(' + (a || '') + ')'));
+    if (!all.every(n => (n || '') === want) || !fams.every(f => f === family(cableOut().label))) { const r = await window.cs.audioSetDefault(want, familyKey(cableOut().label)); if (/^SET /.test(r)) await refreshDefaults(); }
   }
   setupUpdates();
 }

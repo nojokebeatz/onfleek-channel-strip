@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.2.3 — 2026-09-12
+- The name "Virtual Mic Out" only counts when it sits on the cable the app actually feeds (same maker).
+  A leftover copy on another maker's device (for example Voicemeeter) is called out as a stray, and
+  NAME IT renames it to "Unused Virtual Mic" before naming the right one.
+- MAKE DEFAULT and the APPS check now match by maker too, so Windows cannot point at the wrong twin.
+- MIC IN and HEADPHONES lists no longer offer any Voicemeeter or cable devices.
+
 ## 2.2.2 — 2026-09-12
 - NAME IT and MAKE DEFAULT now understand coded device names ("@driver.inf,%key%;Name") that VB-Audio
   drivers store in Windows. NAME IT on a Voicemeeter or VB-CABLE device no longer says "not found".

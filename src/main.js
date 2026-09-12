@@ -92,7 +92,7 @@ const runPSOut = (args) => new Promise((resolve, reject) => {
   let out = '', err = ''; p.stdout.on('data', d => out += d); p.stderr.on('data', d => err += d);
   p.on('close', code => code === 0 ? resolve(out.trim()) : reject(new Error((err || out).trim() || ('exit ' + code))));
 });
-ipcMain.handle('mic:rename', async (e, from, to, flow) => {
+ipcMain.handle('mic:rename', async (e, from, to, flow, adapter) => {
   const esc = s => String(s).replace(/'/g, "''").replace(/[\r\n]/g, '');
   const branch = flow === 'render' ? 'Render' : 'Capture';   // Capture = mic side, Render = speaker side
   const script = `
@@ -106,7 +106,8 @@ foreach ($k in $cap.GetSubKeyNames()) {
   $d=Plain([string]$r.GetValue($desc)); $f=Plain([string]$r.GetValue($fn)); $a=Plain([string]$r.GetValue($adap)); $r.Close()
   $st=[Microsoft.Win32.Registry]::LocalMachine.OpenSubKey("$root\\$k"); $state=0; if ($st) { $state=[int]$st.GetValue('DeviceState',0); $st.Close() }
   if ($state -eq 1 -and $d) { $seen += $d }
-  if ($d -eq '${esc(from)}' -or $f -like '${esc(from)} (*' -or $d -like '${esc(from)} (*') {
+  $adOk = ('${esc(adapter || '')}' -eq '') -or ($a -like '*${esc(adapter || '')}*')
+  if ($adOk -and ($d -eq '${esc(from)}' -or $f -like '${esc(from)} (*' -or $d -like '${esc(from)} (*')) {
     $w=[Microsoft.Win32.Registry]::LocalMachine.OpenSubKey("$root\\$k\\Properties",[Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,$rights)
     $w.SetValue($desc,'${esc(to)}',[Microsoft.Win32.RegistryValueKind]::String)
     if ($f) { $full = if ($a) { '${esc(to)} (' + $a + ')' } else { '${esc(to)}' }; $w.SetValue($fn,$full,[Microsoft.Win32.RegistryValueKind]::String) }
@@ -147,8 +148,8 @@ app.on('before-quit', (e) => {
   restoredOnQuit = true; e.preventDefault();
   runPSOut(['-File', defaultsScript(), 'set', defaultMemo.prev]).catch(() => {}).finally(() => app.quit());
 });
-ipcMain.handle('audio:setDefault', async (e, name) => {
-  try { return await runPSOut(['-File', defaultsScript(), 'set', String(name)]); }
+ipcMain.handle('audio:setDefault', async (e, name, adapter) => {
+  try { return await runPSOut(['-File', defaultsScript(), 'set', String(name), String(adapter || '')]); }
   catch (e) { return 'FAILED ' + String(e.message || e).slice(0, 120); }
 });
 

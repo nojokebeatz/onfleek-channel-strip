@@ -2,7 +2,7 @@
 #   audio-default.ps1 get                -> JSON { console, multimedia, communications } (friendly names)
 #   audio-default.ps1 set "<DeviceDesc>" -> sets the capture endpoint whose short name matches, prints "SET <id>"
 # Uses the same COM interface the Sound control panel uses (IPolicyConfig). No admin needed.
-param([string]$Mode = 'get', [string]$Name = '')
+param([string]$Mode = 'get', [string]$Name = '', [string]$Adapter = '')
 $ErrorActionPreference = 'Stop'
 Add-Type -TypeDefinition @"
 using System;
@@ -51,6 +51,7 @@ namespace OnFleekAudio {
 "@
 $desc = '{a45c254e-df1c-4efd-8020-67d146a850e0},2'
 $fn   = '{a45c254e-df1c-4efd-8020-67d146a850e0},14'
+$adap = '{b3f8fa53-0004-438e-9003-51a46e139bfc},6'
 $root = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Capture'
 function Plain([string]$s) { if (-not $s) { return '' }; if ($s.StartsWith('@')) { $i = $s.LastIndexOf(';'); if ($i -ge 0) { $s = $s.Substring($i + 1) } }; return $s.Trim() }
 function NameOf([string]$id) {
@@ -60,9 +61,18 @@ function NameOf([string]$id) {
   if (Test-Path $p) { $v = Get-ItemProperty $p; if ($v.$desc) { return Plain([string]$v.$desc) } }
   return $id
 }
+function AdapterOf([string]$id) {
+  if (-not $id) { return '' }
+  $g = $id -replace '^\{0\.0\.1\.00000000\}\.', ''
+  $p = Join-Path (Join-Path $root $g) 'Properties'
+  if (Test-Path $p) { $v = Get-ItemProperty $p; if ($v.$adap) { return Plain([string]$v.$adap) } }
+  return ''
+}
 if ($Mode -eq 'get') {
-  $o = @{ console = NameOf([OnFleekAudio.Api]::DefaultCaptureId(0)); multimedia = NameOf([OnFleekAudio.Api]::DefaultCaptureId(1)); communications = NameOf([OnFleekAudio.Api]::DefaultCaptureId(2)) }
-  '{"console":"' + $o.console.Replace('"','') + '","multimedia":"' + $o.multimedia.Replace('"','') + '","communications":"' + $o.communications.Replace('"','') + '"}'
+  $ids = @([OnFleekAudio.Api]::DefaultCaptureId(0), [OnFleekAudio.Api]::DefaultCaptureId(1), [OnFleekAudio.Api]::DefaultCaptureId(2))
+  $j = @{ console = NameOf($ids[0]); consoleAdapter = AdapterOf($ids[0]); multimedia = NameOf($ids[1]); multimediaAdapter = AdapterOf($ids[1]); communications = NameOf($ids[2]); communicationsAdapter = AdapterOf($ids[2]) }
+  $parts = @(); foreach ($k in 'console','consoleAdapter','multimedia','multimediaAdapter','communications','communicationsAdapter') { $parts += ('"' + $k + '":"' + ([string]$j[$k]).Replace('\\','\\\\').Replace('"','') + '"') }
+  '{' + ($parts -join ',') + '}'
   exit 0
 }
 if ($Mode -eq 'set') {
@@ -71,7 +81,8 @@ if ($Mode -eq 'set') {
     $p = Join-Path $k.PSPath 'Properties'; if (-not (Test-Path $p)) { continue }
     $v = Get-ItemProperty $p; $state = (Get-ItemProperty $k.PSPath).DeviceState
     if ($state -ne 1) { continue }   # 1 = active
-    $d = Plain([string]$v.$desc); $f = Plain([string]$v.$fn)
+    $d = Plain([string]$v.$desc); $f = Plain([string]$v.$fn); $a = Plain([string]$v.$adap)
+    if ($Adapter -and ($a -notlike "*$Adapter*")) { continue }
     if ($d -eq $Name -or $f -like "$Name (*" -or $d -like "$Name (*") { $hit = '{0.0.1.00000000}.' + $k.PSChildName; break }
   }
   if (-not $hit) { Write-Output "NOTFOUND $Name"; exit 2 }
