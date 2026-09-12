@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.7.0 — 2026-09-12 — ten improvements + SHARE
+Looks:
+- A section whose IN is off goes dim, so you can see what is working at a glance. BYPASS dims them all.
+- PEAK readout under the preset row: the loudest IN and OUT level in numbers.
+- EQ curve shows a colored dot per band (same color as the knobs), so you know which knob made which bump.
+- Boot animation: the panel rises in and the knobs sweep to their settings.
+- Fader cap glows while you move it; a 0 dB line on the track.
+Works:
+- Undo / redo: Ctrl+Z and Ctrl+Y step back and forward through every change.
+- A/B button: two settings slots. Press it to jump between A and B and hear the difference (great with PLAY).
+- LOCK button: nothing on the panel moves during a call. MUTE still works. Press LOCK again to unlock.
+- Keyboard: M mute, B bypass, R record, P play, L lock, Ctrl+S save preset, Esc closes boxes.
+- SHARE (top bar): copy the download link for a friend, or COPY CODE / PASTE CODE to swap settings with someone.
+
 ## 2.6.0 — 2026-09-12 — record, play, compare
 - REC now records 15 seconds of your mic. PLAY loops that recording through the strip into your headphones
   (MON turns on by itself). Turn any knob while it plays to compare settings. PLAY again = back to the live

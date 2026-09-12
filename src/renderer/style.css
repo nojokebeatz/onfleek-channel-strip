@@ -117,7 +117,7 @@ html,body{margin:0;height:100%;background:#1f2023;overflow:hidden;font-family:va
 .tog .lamp{position:absolute;left:14%;right:14%;top:4px;height:6px;border-radius:3px;background:#17181a;box-shadow:inset 0 1px 2px rgba(0,0,0,.9),0 1px 0 rgba(255,255,255,.06);transform-origin:50% 50%;pointer-events:none}
 .tog.on{background:linear-gradient(#3b3c40,#262729);box-shadow:0 1px 1px rgba(0,0,0,.7),inset 0 1px 3px rgba(0,0,0,.6);color:#f4f2ea}
 .tog.on .lamp{background:radial-gradient(ellipse at 50% 30%,rgba(255,255,255,.6),transparent 60%),var(--lamp);box-shadow:0 0 10px var(--lamp),0 0 3px rgba(255,255,255,.6),inset 0 -1px 2px rgba(0,0,0,.35)}
-.bigbtns{display:flex;justify-content:center;gap:14px;padding:6px 0 2px}
+.bigbtns{display:flex;justify-content:center;gap:14px;padding:2px 0 0}
 .bigbtns .tog.wide{width:120px;height:40px;font-size:12px;padding-top:14px}
 .bigbtns .tog .lamp{top:6px;height:7px;left:12%;right:12%}
 .led{width:12px;height:12px;border-radius:50%;display:inline-block;background:#1c1c1e;box-shadow:inset 0 1px 2px #000,0 1px 0 rgba(255,255,255,.08);vertical-align:middle;position:relative;transition:background .05s,box-shadow .05s}
@@ -142,7 +142,7 @@ select:focus{outline:none;border-color:#6b5a2a}
 .pwr{height:28px;padding:0 12px 0 10px;display:inline-flex;align-items:center;gap:7px;border:1px solid #0c0c0d;border-radius:3px;cursor:pointer;
   background:linear-gradient(#4b4c50,#303134);color:#e6e2d4;font:800 11px var(--font);letter-spacing:1.6px;box-shadow:0 2px 3px rgba(0,0,0,.7),inset 0 1px 0 rgba(255,255,255,.14)}
 .pwr.on{background:linear-gradient(#3b3c40,#262729);transform:translateY(1px);box-shadow:0 1px 1px rgba(0,0,0,.7),inset 0 1px 3px rgba(0,0,0,.6)}
-.hint{margin:6px 0 2px;padding:7px 10px;border:1px dashed #5a4a22;border-radius:3px;background:rgba(255,176,46,.06);color:#d6b56a;font:500 11.5px var(--font);line-height:1.4;display:flex;align-items:center;gap:8px}
+.hint{margin:4px 0 0;padding:5px 8px;border:1px dashed #5a4a22;border-radius:3px;background:rgba(255,176,46,.06);color:#d6b56a;font:500 11.5px var(--font);line-height:1.4;display:flex;align-items:center;gap:8px}
 .hint[hidden]{display:none}
 .hint a{color:#ffd27a;font-weight:700}
 .hintbtn{flex:none;height:30px;padding:0 12px;border:1px solid #000;border-radius:3px;cursor:pointer;
@@ -158,7 +158,7 @@ select:focus{outline:none;border-color:#6b5a2a}
 .check.ok .ck-text{color:#bfe9c6}
 .check.ok .hintbtn{display:none}
 .check.busy .hintbtn{opacity:.5;pointer-events:none}
-.knobrow.masters{align-items:center;justify-content:space-around;padding-top:6px}
+.knobrow.masters{align-items:center;justify-content:space-around;padding-top:0}
 .slot.tozoom{align-items:flex-start;width:120px;gap:4px}
 .slot.tozoom .tiny{text-align:left}
 
@@ -223,3 +223,22 @@ select optgroup{color:#9a988f;font:700 11px var(--font);letter-spacing:1px;backg
 .logtext{flex:1;overflow:auto;margin:10px 0 0;padding:10px 12px;background:#0b0c0d;color:#d6d3c6;font:12px/1.5 Consolas,monospace;white-space:pre-wrap;border-radius:4px;box-shadow:inset 0 1px 4px rgba(0,0,0,.9)}
 .tog:disabled{opacity:.45;cursor:default}
 .logtext b{display:block;color:#ffb02e;margin-top:6px;font-size:13px}
+
+/* V1: a section whose IN is off goes dim, so you can see at a glance what is working */
+.sec .knob,.sec .eqcurve,.sec .ledlabel,.sec .gatecut,.sec .readrow{transition:opacity .25s,filter .25s}
+.sec.off .knob,.sec.off .eqcurve,.sec.off .ledlabel,.sec.off .gatecut,.sec.off .readrow{opacity:.42;filter:saturate(.4)}
+.sec.byp .knob,.sec.byp .eqcurve{opacity:.3;filter:saturate(.2)}
+/* V5: fader cap glows while you move it; 0 dB detent line */
+.fcap.active{box-shadow:0 0 0 1px #000,0 0 14px rgba(255,176,46,.55),0 6px 12px rgba(0,0,0,.8)}
+.fscale .zero{color:var(--amber);font-weight:800}
+.fader .detent{position:absolute;left:68px;width:22px;height:2px;margin-top:-1px;background:rgba(255,176,46,.6);pointer-events:none;z-index:1}
+/* V2: peak readouts */
+.toolrow{gap:8px;padding:2px 0 0}
+.toolrow .tog{height:30px}
+.toolrow .tog .lamp{top:5px}
+.toolrow .peaks{margin-left:auto;font-size:10px;white-space:nowrap}
+/* LOCK */
+#strip.locked .knob,#strip.locked .fcap,#strip.locked .tog:not(#btnLock):not([data-tog="mute"]),#strip.locked select{cursor:not-allowed}
+#strip.locked .knob .cap{filter:brightness(.8)}
+#shareLink{width:100%;box-sizing:border-box;font:12px Consolas,monospace}
+#shareCopied{color:var(--amber);min-height:14px;margin-top:8px}

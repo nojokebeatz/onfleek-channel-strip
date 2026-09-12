@@ -122,6 +122,11 @@ w/scale x h/scale so it always fills the viewport. Column min-widths must sum to
   cable keeps the live mic. `startMon` re-sends the take. Version label click -> `changelog:get` IPC reads
   CHANGELOG.md (now in the packaged `files`); `--shotlog` flag opens the box for screenshots.
 
+- 2.7.0: undo ring `hist` (snap() in changed(), 400 ms merge); A/B slot `ab`; LOCK = `state.locked` checked in knob
+  set/toggle click/fader move; settings code = `CS1:` + base64(JSON of presetOnly(params)); SHARE box `#shareBox`;
+  key handler ignores inputs/selects. OUTPUT column is tight: the cable hint + tool row only fit with the compact
+  paddings (.hint / .masters / .bigbtns) - screenshot before adding rows there.
+
 ## Traps
 - Chromium hides device names until the mic permission is granted once — `unlockLabels()` does that.
 - `AudioContext.setSinkId('')` = default output; `'default'` id must be mapped to `''`.

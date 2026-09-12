@@ -13,7 +13,7 @@
   <div class="rail-top" id="titlebar">
     <i class="screw"></i>
     <div class="brand"><span class="logo">OnFleek</span><span class="model">CS-9000 · VOCAL CHANNEL STRIP</span><span class="ver" id="verLabel" title="Click to see what changed in each version"></span></div>
-    <div class="winbtns"><button class="upd" id="btnLog" title="Send the app's log to OnFleek so Claude can read it">SEND LOG</button><button class="upd" id="btnUpdate" title="Check for a new version"><i class="led green" id="ledUpd"></i><span id="btnUpdateText">UPDATE</span></button><button id="btnMin" title="Minimize">&#8211;</button><button id="btnClose" title="Close">&#215;</button></div>
+    <div class="winbtns"><button class="upd" id="btnShare" title="Get the link to share this app, or copy your settings as a code">SHARE</button><button class="upd" id="btnLog" title="Send the app's log to OnFleek so Claude can read it">SEND LOG</button><button class="upd" id="btnUpdate" title="Check for a new version"><i class="led green" id="ledUpd"></i><span id="btnUpdateText">UPDATE</span></button><button id="btnMin" title="Minimize">&#8211;</button><button id="btnClose" title="Close">&#215;</button></div>
     <i class="screw"></i>
   </div>
 
@@ -38,6 +38,17 @@
       <div class="pinbox-title">WHAT CHANGED</div>
       <pre id="logText" class="logtext"></pre>
       <div class="pinbox-btns"><button class="tog wide" id="logClose">CLOSE</button></div>
+    </div>
+  </div>
+  <div id="shareBox" class="pinbox" hidden>
+    <div class="pinbox-card">
+      <div class="pinbox-title">SHARE</div>
+      <div class="pinbox-text">Send a friend this link. They download the Setup file, run it, and get updates by themselves.</div>
+      <input id="shareLink" type="text" readonly class="nameinput" value="https://github.com/nojokebeatz/onfleek-channel-strip/releases/latest">
+      <div class="pinbox-btns"><button class="hintbtn" id="shareCopy">COPY LINK</button></div>
+      <div class="pinbox-text" style="margin-top:12px">Or share your settings. COPY CODE puts your knob settings on the clipboard as a code. A friend clicks PASTE CODE to load them.</div>
+      <div class="pinbox-btns"><button class="hintbtn" id="shareCodeCopy">COPY CODE</button><button class="hintbtn" id="shareCodePaste">PASTE CODE</button><button class="tog wide" id="shareClose">CLOSE</button></div>
+      <div class="pinbox-text lcdsmall" id="shareCopied"></div>
     </div>
   </div>
   <div id="updateBar" hidden><span id="updateText">New version available</span><button id="updateBtn">GET IT</button></div>
@@ -78,6 +89,11 @@
           <label class="patch"><span>PRESET</span><select id="selPreset"></select></label>
           <button class="hintbtn small" id="btnSavePreset" title="Save these settings under your own name">SAVE</button>
           <button class="tog" id="btnDelPreset" data-lamp="#ff3b30" title="Delete this saved preset" hidden>DEL</button>
+        </div>
+        <div class="patchrow toolrow">
+          <button class="tog wide" id="btnAB" data-lamp="#7fd7ff" title="Two settings slots. Press to jump between A and B and hear the difference.">A/B · A</button>
+          <button class="tog" id="btnLock" data-lamp="#ff5a4e" title="Lock every knob and button so nothing changes during a call (MUTE still works)">LOCK</button>
+          <span class="lcdsmall peaks" id="peaks">PEAK  IN —  ·  OUT —</span>
         </div>
         <div class="knobrow masters">
           <div class="slot tozoom"><span class="ledlabel big"><i class="led green" id="ledZoom"></i>TO APPS</span><span class="tiny" id="zoomText">Virtual Mic Out</span><span class="tiny">WHAT MEET / ZOOM HEAR</span></div>

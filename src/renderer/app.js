@@ -68,6 +68,18 @@ const GATE_HYST = 4;   // must match HYST in the worklet
 const health = { hiccups: 0, clips: 0, nans: 0, lastT: 0, wall: 0, ct: 0 };
 const healthText = () => (health.hiccups ? ` · ${health.hiccups} STALLS` : '') + (health.clips ? ` · ${health.clips} CLIPS` : '');
 let leveling = false, recTimer = 0, take = null, playing = false;
+const ab = { other: null, slot: 'A' };
+const SHARE_URL = 'https://github.com/nojokebeatz/onfleek-channel-strip/releases/latest';
+const presetOnly = (p) => { const o = Object.assign({}, p); NOT_IN_PRESET.forEach(k => delete o[k]); return o; };
+/* V4: boot animation. Sections rise in, knob caps sweep from the left stop to their setting. */
+function bootAnimation() {
+  if (!window.gsap) return;
+  gsap.fromTo('.sec', { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.45, stagger: 0.05, ease: 'power2.out', clearProps: 'transform,opacity' });
+  $$('.knob .cap').forEach((cap, i) => {
+    const target = cap.style.getPropertyValue('--rot') || '0deg';
+    gsap.fromTo(cap, { '--rot': '-150deg' }, { '--rot': target, duration: 0.7, delay: 0.15 + i * 0.02, ease: 'power3.out' });
+  });
+}
 const REC_SECS = 15;
 function wavStereo16(l, r, sr) {
   const n = l.length, buf = new ArrayBuffer(44 + n * 4), v = new DataView(buf);
@@ -131,7 +143,7 @@ function buildKnob(el) {
   el.innerHTML = `<div class="ring">${ticksSVG(spec)}</div><div class="body"><div class="cap"><div class="ptr"></div></div></div><div class="lbl">${el.dataset.label}</div><div class="val"></div>`;
   const body = $('.body', el), cap = $('.cap', el), val = $('.val', el);
   knobEls[id] = { el, cap, val, spec };
-  const set = (v, fromUser) => { state.params[id] = v; renderKnob(id); if (fromUser) changed(id === 'phones'); };
+  const set = (v, fromUser) => { if (fromUser && state.locked) { flashLcd('PANEL LOCKED', 800); return; } state.params[id] = v; renderKnob(id); if (fromUser) changed(id === 'phones'); };
   let lastY = 0, dragging = false;
   body.addEventListener('pointerdown', e => { dragging = true; lastY = e.clientY; body.setPointerCapture(e.pointerId); el.classList.add('active'); e.preventDefault(); });
   body.addEventListener('pointermove', e => {
@@ -157,10 +169,13 @@ const togEls = {};
 function buildToggle(btn) {
   const id = btn.dataset.tog; togEls[id] = btn;
   if (btn.dataset.lamp) btn.style.setProperty('--lamp', btn.dataset.lamp);
-  btn.addEventListener('click', () => { state.params[id] = state.params[id] ? 0 : 1; renderToggle(id); changed(id === 'mute'); });
+  btn.addEventListener('click', () => { if (state.locked && id !== 'mute') { flashLcd('PANEL LOCKED', 800); return; } state.params[id] = state.params[id] ? 0 : 1; renderToggle(id); changed(id === 'mute'); });
 }
+const SEC_OF = { filtersIn: '.sec-input', gateIn: '.sec-gate', compIn: '.sec-comp', deIn: '.sec-de', eqIn: '.sec-eq' };
 function renderToggle(id) {
   togEls[id] && togEls[id].classList.toggle('on', !!state.params[id]);
+  if (SEC_OF[id]) $(SEC_OF[id]).classList.toggle('off', !state.params[id]);
+  if (id === 'bypass') $$('.sec-input,.sec-gate,.sec-comp,.sec-de,.sec-eq').forEach(e => e.classList.toggle('byp', !!state.params.bypass));
   if (id === 'mute') { window.cs.muteState(!!state.params.mute); if (lastOuts) renderSetup(); }
 }
 
@@ -181,15 +196,17 @@ function buildFader() {
     const s = document.createElement('span'); s.textContent = t; s.style.top = ((1 - faderDbToPos(d)) * TRACK_H) + 'px'; if (d === 0) s.className = 'zero'; scale.appendChild(s);
   });
   const cap = $('#fcap'), fader = $('#fader');
+  const det = document.createElement('i'); det.className = 'detent'; det.style.top = (TRACK_TOP + (1 - faderDbToPos(0)) * TRACK_H) + 'px'; fader.appendChild(det);
   let dragging = false, lastY = 0;
-  cap.addEventListener('pointerdown', e => { dragging = true; lastY = e.clientY; cap.setPointerCapture(e.pointerId); e.preventDefault(); });
+  cap.addEventListener('pointerdown', e => { dragging = true; lastY = e.clientY; cap.setPointerCapture(e.pointerId); cap.classList.add('active'); e.preventDefault(); });
   cap.addEventListener('pointermove', e => {
     if (!dragging) return;
     const s = currentScale(); const dy = (lastY - e.clientY) / s; lastY = e.clientY;
+    if (state.locked) return;
     const p = clamp(faderDbToPos(state.params.fader) + dy / TRACK_H * (e.shiftKey ? 0.2 : 1), 0, 1);
     state.params.fader = faderPosToDb(p); renderFader(); changed();
   });
-  const end = () => { dragging = false; };
+  const end = () => { dragging = false; cap.classList.remove('active'); };
   cap.addEventListener('pointerup', end); cap.addEventListener('pointercancel', end);
   cap.addEventListener('dblclick', () => { state.params.fader = 0; renderFader(); changed(); });
   fader.addEventListener('wheel', e => { e.preventDefault(); const p = clamp(faderDbToPos(state.params.fader) - Math.sign(e.deltaY) * (e.shiftKey ? 0.004 : 0.02), 0, 1); state.params.fader = faderPosToDb(p); renderFader(); changed(); }, { passive: false });
@@ -203,7 +220,20 @@ function renderFader() {
 /* ---------- render all / change plumbing ---------- */
 function renderAll() { for (const id in knobEls) renderKnob(id); for (const id in togEls) renderToggle(id); renderFader(); $('#selPreset').value = presetValid(state.preset) ? state.preset : ''; $('#btnDelPreset').hidden = !isUserPreset(state.preset); drawCurve(); }
 let sendPending = false, saveTimer = 0;
+/* ---------- undo / redo (Ctrl+Z / Ctrl+Y): every settings change is a snapshot ---------- */
+const hist = { past: [], future: [], last: '', t: 0 };
+function snap() {
+  const now = JSON.stringify(state.params);
+  if (now === hist.last) return;
+  // knob drags fire many times a second: merge changes closer than 400 ms into one undo step
+  if (hist.last && (Date.now() - hist.t > 400 || !hist.past.length)) { hist.past.push(hist.last); if (hist.past.length > 60) hist.past.shift(); hist.future.length = 0; }
+  hist.last = now; hist.t = Date.now();
+}
+function restore(json) { state.params = Object.assign(DEFAULT_PARAMS(), JSON.parse(json)); hist.last = json; renderAll(); changed(true); }
+function undo() { if (!hist.past.length) return flashLcd('NOTHING TO UNDO', 1200); hist.future.push(hist.last); restore(hist.past.pop()); flashLcd('UNDO', 1000); }
+function redo() { if (!hist.future.length) return flashLcd('NOTHING TO REDO', 1200); hist.past.push(hist.last); restore(hist.future.pop()); flashLcd('REDO', 1000); }
 function changed(keepPreset) {
+  snap();
   if (!keepPreset && state.preset !== '') { state.preset = ''; $('#selPreset').value = ''; $('#btnDelPreset').hidden = true; }
   if (!sendPending) { sendPending = true; requestAnimationFrame(() => { sendPending = false; sendParams(); drawCurve(); }); }
   clearTimeout(saveTimer); saveTimer = setTimeout(save, 400);
@@ -645,6 +675,7 @@ function loop(t) {
   drawColumn(18, disp.in, disp.inHold, 'IN', false, inMarks, gateOnNow ? meter.gateLvl : undefined, meter.gateOpen ? '#ffffff' : '#ff8a80');
   drawGR(60, disp.gr); drawColumn(114, disp.out, disp.outHold, 'OUT', true); drawScale();
   $('#grReadout').textContent = disp.gr.toFixed(1);
+  if ((t / 100 | 0) % 2 === 0) $('#peaks').textContent = running ? `PEAK  IN ${disp.inHold <= -60 ? '\u2212\u221e' : disp.inHold.toFixed(1)}  \u00b7  OUT ${disp.outHold <= -60 ? '\u2212\u221e' : disp.outHold.toFixed(1)}  dBFS` : 'PEAK  IN \u2014  \u00b7  OUT \u2014';
   const gateOn = running && state.params.gateIn && !state.params.bypass;
   $('#ledGateOpen').classList.toggle('on', gateOn && meter.gateOpen);
   $('#ledGateRed').classList.toggle('on', gateOn && meter.gateRed > 0.5);
@@ -713,6 +744,12 @@ function drawCurve() {
   gE.lineWidth = 1.5; gE.strokeStyle = active ? '#ffb02e' : 'rgba(255,255,255,.25)';
   gE.shadowColor = active ? 'rgba(255,176,46,.7)' : 'transparent'; gE.shadowBlur = active ? 5 : 0; gE.stroke(); gE.shadowBlur = 0;
   if (active) { gE.lineTo(W, H / 2); gE.lineTo(0, H / 2); gE.closePath(); gE.fillStyle = 'rgba(255,176,46,.10)'; gE.fill(); }
+  if (!p.bypass && p.eqIn) { // a dot per band, in the band's knob colour, so you can see which knob made which bump
+    [['lf', '#c8783c'], ['lmf', '#3f78ff'], ['hmf', '#4cff6a'], ['hf', '#ff5a4e']].forEach(([b, c]) => {
+      const x = fx(p[b + 'Freq'], W), y = clamp(H / 2 - p[b + 'Gain'] * (H / 2) / RANGE, 4, H - 4);
+      gE.beginPath(); gE.arc(x, y, 3.5, 0, Math.PI * 2); gE.fillStyle = c; gE.fill(); gE.strokeStyle = 'rgba(0,0,0,.8)'; gE.lineWidth = 1; gE.stroke();
+    });
+  }
 }
 
 /* ---------- scale to fit window ---------- */
@@ -859,6 +896,45 @@ async function boot() {
   };
   $('#btnMin').onclick = () => window.cs.minimize(); $('#btnClose').onclick = () => window.cs.close();
   setupLamps();
+  bootAnimation();
+  // A/B: two settings slots. Press A/B to jump between them and hear the difference (works great with PLAY).
+  $('#btnAB').onclick = () => {
+    const cur = JSON.stringify(state.params);
+    if (!ab.other) { ab.other = cur; ab.slot = 'B'; flashLcd('SLOT B = COPY OF A \u00b7 CHANGE SOMETHING, THEN PRESS A/B', 3500); }
+    else { const to = ab.other; ab.other = cur; ab.slot = ab.slot === 'A' ? 'B' : 'A'; restore(to); flashLcd('NOW HEARING ' + ab.slot, 1500); }
+    $('#btnAB').lastChild.textContent = 'A/B \u00b7 ' + ab.slot; $('#btnAB').classList.toggle('on', ab.slot === 'B');
+  };
+  // LOCK: no knob, button or fader moves until you unlock (for during a call)
+  $('#btnLock').onclick = () => { state.locked = !state.locked; $('#btnLock').classList.toggle('on', state.locked); $('#strip').classList.toggle('locked', state.locked); flashLcd(state.locked ? 'PANEL LOCKED \u00b7 PRESS LOCK AGAIN TO UNLOCK' : 'PANEL UNLOCKED', 2500); };
+  // SHARE: the download link for friends + settings as a code
+  $('#btnShare').onclick = () => { $('#shareBox').hidden = false; $('#shareCopied').textContent = ''; };
+  $('#shareClose').onclick = () => { $('#shareBox').hidden = true; };
+  $('#shareCopy').onclick = async () => { try { await navigator.clipboard.writeText(SHARE_URL); $('#shareCopied').textContent = 'COPIED \u00b7 PASTE IT IN A TEXT OR EMAIL'; } catch { $('#shareCopied').textContent = 'COULD NOT COPY \u00b7 SELECT THE LINK AND PRESS CTRL+C'; } };
+  $('#shareCodeCopy').onclick = async () => {
+    const code = 'CS1:' + btoa(unescape(encodeURIComponent(JSON.stringify(presetOnly(state.params)))));
+    try { await navigator.clipboard.writeText(code); $('#shareCopied').textContent = 'SETTINGS CODE COPIED \u00b7 A FRIEND LOADS IT WITH PASTE CODE'; } catch { $('#shareCopied').textContent = 'COULD NOT COPY'; }
+  };
+  $('#shareCodePaste').onclick = async () => {
+    try {
+      const t = (await navigator.clipboard.readText()).trim();
+      if (!t.startsWith('CS1:')) { $('#shareCopied').textContent = 'THAT IS NOT A SETTINGS CODE'; return; }
+      const obj = JSON.parse(decodeURIComponent(escape(atob(t.slice(4)))));
+      state.params = Object.assign(DEFAULT_PARAMS(), obj, { fader: state.params.fader, phones: state.params.phones, mute: state.params.mute });
+      renderAll(); changed(); $('#shareCopied').textContent = 'SETTINGS LOADED FROM THE CODE'; log('settings code pasted');
+    } catch (e) { $('#shareCopied').textContent = 'COULD NOT READ THAT CODE'; }
+  };
+  // Keyboard: M mute, B bypass, R record, P play, L lock, Ctrl+Z undo, Ctrl+Y redo, Ctrl+S save preset, Esc closes boxes
+  window.addEventListener('keydown', e => {
+    const tag = (e.target.tagName || '').toLowerCase(); if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
+    const k = e.key.toLowerCase();
+    if (e.ctrlKey && k === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return; }
+    if (e.ctrlKey && (k === 'y' || (k === 'z' && e.shiftKey))) { e.preventDefault(); redo(); return; }
+    if (e.ctrlKey && k === 's') { e.preventDefault(); $('#btnSavePreset').click(); return; }
+    if (e.ctrlKey || e.altKey || e.metaKey) return;
+    if (k === 'm') togEls.mute.click(); else if (k === 'b') togEls.bypass.click(); else if (k === 'r') $('#btnRec').click();
+    else if (k === 'p') $('#btnPlay').click(); else if (k === 'l') $('#btnLock').click();
+    else if (k === 'escape') { $('#shareBox').hidden = true; $('#logBox').hidden = true; }
+  });
   // REC: 10 s of what goes INTO the strip (left) and what the cable GETS (right), as a WAV Claude can listen to
   $('#btnRec').onclick = () => {
     if (!running || !node || $('#btnRec').classList.contains('on')) return;
