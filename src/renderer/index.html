@@ -35,7 +35,10 @@
           <span class="ledlabel"><i class="led amber" id="ledCable"></i>CABLE</span>
           <button class="tog" data-lamp="#c8ff5a" id="btnListen">LISTEN</button>
         </div>
-        <div class="hint" id="cableHint" hidden>No virtual cable found. Install the free <a href="#" id="cableLink">VB-CABLE</a>, then pick “CABLE Input” under SEND TO. Other apps then use “CABLE Output” as their mic.</div>
+        <div class="hint" id="cableHint" hidden>
+          <button class="hintbtn" id="btnCable">INSTALL CABLE</button>
+          <span id="cableHintText">No virtual cable found. This gets the free <a href="#" id="cableLink">VB-CABLE</a> (donationware by vb-audio.com), opens its setup, you click “Install Driver”, then restart the PC. After that pick “CABLE Input” under SEND TO, and “CABLE Output” as the mic in your other apps.</span>
+        </div>
       </section>
 
       <section class="sec sec-input">

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.0 — 2026-09-12
+- INSTALL CABLE button: fetches the official VB-CABLE package from vb-audio.com, unpacks it and opens
+  its setup (one admin "Yes", click "Install Driver", restart). The app then picks CABLE Input itself.
+- VB-CABLE is NOT bundled: its license forbids folding it into another installer, and no open-source,
+  Microsoft-signed cable exists to bundle instead.
+
 ## 1.0.0 — 2026-09-12
 - First release. SSL-style vocal channel strip for a USB mic on Windows.
 - Signal flow: mic → trim → high/low-pass filters → gate/expander → compressor → 4-band EQ → fader → output.

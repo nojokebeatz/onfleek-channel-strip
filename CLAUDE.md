@@ -29,6 +29,13 @@ Windows has no built-in "fake microphone". The app plays its processed sound int
 https://vb-audio.com/Cable/). In the app: MIC IN = Virtual MIC, SEND TO = "CABLE Input". In Zoom/Discord/OBS:
 mic = "CABLE Output". The LISTEN button temporarily sends the output to the default speakers instead.
 
+## VB-CABLE rule (license, read before touching)
+The VB-CABLE readme says: copying the package AS IS is allowed, but "it is not allowed to integrate the
+VB-CABLE package in another software installation procedure without Author agreement." So it is NEVER
+bundled in our installer. The INSTALL CABLE button (`cable:install` in main.js) downloads the unmodified
+zip from vb-audio.com at click time, unpacks it in %TEMP%, and opens THEIR setup elevated. No open-source
+alternative exists that Microsoft has signed (unsigned kernel drivers will not load on Windows 10/11).
+
 ## Traps
 - Chromium hides device names until the mic permission is granted once — `unlockLabels()` does that.
 - `AudioContext.setSinkId('')` = default output; `'default'` id must be mapped to `''`.

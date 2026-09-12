@@ -59,5 +59,31 @@ ipcMain.handle('state:save', (e, state) => {
 });
 ipcMain.handle('app:version', () => app.getVersion());
 ipcMain.handle('shell:open', (e, url) => { if (/^https?:\/\//.test(url)) shell.openExternal(url); });
+// VB-CABLE helper. License allows copying the package AS IS but forbids folding it into another
+// installer, so we fetch the unmodified zip from vb-audio.com at click time and open THEIR setup.
+const { spawn } = require('child_process');
+const runPS = (cmd) => new Promise((resolve, reject) => {
+  const p = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', cmd], { windowsHide: true });
+  let err = ''; p.stderr.on('data', d => err += d);
+  p.on('close', code => code === 0 ? resolve() : reject(new Error(err.trim() || ('exit ' + code))));
+});
+const CABLE_URL = 'https://download.vb-audio.com/Download_CABLE/VBCABLE_Driver_Pack45.zip';
+ipcMain.handle('cable:install', async () => {
+  const progress = (s) => win && win.webContents.send('cable:progress', s);
+  const dir = path.join(app.getPath('temp'), 'onfleek-vbcable');
+  fs.mkdirSync(dir, { recursive: true });
+  const zip = path.join(dir, 'VBCABLE_Driver_Pack45.zip');
+  progress('download');
+  const res = await fetch(CABLE_URL);
+  if (!res.ok) throw new Error('download failed: HTTP ' + res.status);
+  fs.writeFileSync(zip, Buffer.from(await res.arrayBuffer()));
+  progress('extract');
+  await runPS(`Expand-Archive -LiteralPath '${zip}' -DestinationPath '${dir}' -Force`);
+  const setup = path.join(dir, 'VBCABLE_Setup_x64.exe');
+  if (!fs.existsSync(setup)) throw new Error('setup exe missing after unzip');
+  progress('launch');
+  await runPS(`Start-Process -FilePath '${setup}' -WorkingDirectory '${dir}' -Verb RunAs`);
+  return { ok: true };
+});
 ipcMain.handle('win:minimize', () => win && win.minimize());
 ipcMain.handle('win:close', () => win && win.close());

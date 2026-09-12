@@ -336,6 +336,21 @@ async function boot() {
   renderAll();
   $('#btnMin').onclick = () => window.cs.minimize(); $('#btnClose').onclick = () => window.cs.close();
   $('#cableLink').onclick = e => { e.preventDefault(); window.cs.openExternal('https://vb-audio.com/Cable/'); };
+  window.cs.onCableProgress(s => lcd({ download: 'DOWNLOADING VB-CABLE…', extract: 'UNPACKING…', launch: 'OPENING VB-CABLE SETUP · CLICK YES' }[s] || s));
+  $('#btnCable').onclick = async () => {
+    const b = $('#btnCable'); b.disabled = true;
+    try {
+      await window.cs.installCable();
+      lcd('IN VB-CABLE: CLICK "INSTALL DRIVER", THEN RESTART PC');
+      $('#cableHintText').textContent = 'VB-CABLE setup is open. Click “Install Driver”, then restart the PC. When you come back, this app picks CABLE Input by itself.';
+      let tries = 0; const poll = setInterval(async () => {
+        const { outs } = await refreshDevices();
+        const c = outs.find(d => /cable input/i.test(d.label));
+        if (c) { clearInterval(poll); state.outputId = c.deviceId; $('#selOut').value = c.deviceId; save(); applySink(); lcd('CABLE FOUND · SEND TO = CABLE INPUT'); }
+        else if (++tries > 60) clearInterval(poll);
+      }, 5000);
+    } catch (e) { lcd('CABLE INSTALL FAILED: ' + (e.message || e), true); b.disabled = false; }
+  };
   $('#btnPower').onclick = () => running ? stop() : start();
   $('#btnListen').onclick = () => { listen = !listen; $('#btnListen').classList.toggle('on', listen); applySink(); };
   $('#selIn').onchange = () => { state.inputId = $('#selIn').value; save(); if (running) restart(); };
