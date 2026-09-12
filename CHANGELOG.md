@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.3.0 — 2026-09-12
+- Gate bites harder: EXP mode is now a steep 1:4 slope (5 dB under the line = 15 dB cut) instead of 1:2.
+- RANGE goes to FULL (dead silent) instead of stopping at 60 dB. New-install default is 40 dB.
+- Live "CUTTING n dB" readout under the gate lamps shows exactly how much is being removed right now.
+
 ## 2.2.5 — 2026-09-12
 - GATE marker on the IN meter: a dashed line with an arrow at the gate threshold. Amber while the gate
   is open, red while it is closed. Moves with the THRESHOLD knob and LEARN.

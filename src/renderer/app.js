@@ -17,7 +17,7 @@ const P = {
   hpf:         { min: 20, max: 500, def: 80, log: true, fmt: hz },
   lpf:         { min: 3000, max: 20000, def: 18000, log: true, fmt: hz },
   gateThresh:  { min: -70, max: 0, def: -45, fmt: v => v.toFixed(0) + ' dB' },
-  gateRange:   { min: 0, max: 60, def: 20, fmt: v => '-' + v.toFixed(0) + ' dB' },
+  gateRange:   { min: 0, max: 80, def: 40, fmt: v => v >= 79 ? 'FULL' : '-' + v.toFixed(0) + ' dB' },
   gateAttack:  { min: 0.1, max: 100, def: 1, log: true, fmt: ms },
   gateHold:    { min: 1, max: 500, def: 50, log: true, fmt: ms },
   gateRelease: { min: 10, max: 3000, def: 150, log: true, fmt: ms },
@@ -366,7 +366,7 @@ const cv = $('#meters'), g = cv.getContext('2d');
 const DPR = Math.min(2, window.devicePixelRatio || 1);
 const MK = 340 / 270;   // meter zoom: the drawing code thinks in 150x270, the canvas is 190x340
 cv.width = Math.round(190 * DPR); cv.height = Math.round(340 * DPR); g.scale(DPR * MK, DPR * MK);
-const disp = { in: -90, out: -90, gr: 0, inHold: -90, outHold: -90, inHoldT: 0, outHoldT: 0, clipIn: 0, clipOut: 0, de: 0 };
+const disp = { in: -90, out: -90, gr: 0, inHold: -90, outHold: -90, inHoldT: 0, outHoldT: 0, clipIn: 0, clipOut: 0, de: 0, gateCut: 0 };
 const SEGS = 30;
 function segDb(k) { // segment k (0 = bottom) lights at this dB
   if (k < 10) return -60 + k * 3; if (k < 20) return -30 + (k - 10) * 1.8; return -12 + (k - 20) * 1.2;
@@ -470,6 +470,8 @@ function loop(t) {
   const gateOn = running && state.params.gateIn && !state.params.bypass;
   $('#ledGateOpen').classList.toggle('on', gateOn && meter.gateOpen);
   $('#ledGateRed').classList.toggle('on', gateOn && meter.gateRed > 0.5);
+  disp.gateCut += (meter.gateRed - disp.gateCut) * 0.3;
+  $('#gateCut').textContent = gateOn && disp.gateCut > 0.4 ? ('CUTTING ' + (disp.gateCut >= 79 ? 'ALL' : Math.round(disp.gateCut) + ' dB')) : (gateOn ? 'OPEN · CUTTING 0 dB' : 'GATE OFF');
   $('#ledLim').classList.toggle('on', running && !!state.params.limIn && !state.params.bypass && meter.lim > 0.3);
   disp.de += (meter.de - disp.de) * (meter.de > disp.de ? 0.6 : 0.15);
   $('#ledDe').classList.toggle('on', running && !!state.params.deIn && !state.params.bypass && meter.de > 1);

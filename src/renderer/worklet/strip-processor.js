@@ -44,7 +44,7 @@ class OnePoleHP { // 6 dB/oct high-pass; cascaded with a Q=1 biquad it gives the
 
 const DEFAULTS = {
   trim: 0, filtersIn: 1, hpf: 80, lpf: 18000,
-  gateIn: 1, gateExp: 1, gateThresh: -45, gateRange: 20, gateAttack: 1, gateHold: 50, gateRelease: 150,
+  gateIn: 1, gateExp: 1, gateThresh: -45, gateRange: 40, gateAttack: 1, gateHold: 50, gateRelease: 150,
   compIn: 1, compThresh: -18, compRatio: 3, compAttack: 10, compRelease: 150, compMakeup: 4, compMix: 100,
   eqIn: 1, hfFreq: 12000, hfGain: 1.5, hfBell: 0, hmfFreq: 3000, hmfGain: 1.5, hmfQ: 1,
   lmfFreq: 300, lmfGain: -1.5, lmfQ: 1, lfFreq: 100, lfGain: 1, lfBell: 0,
@@ -80,7 +80,7 @@ class StripProcessor extends AudioWorkletProcessor {
     this.gAtk = TC(p.gateAttack, sr); this.gRel = TC(p.gateRelease, sr);
     this.holdSamples = Math.round(p.gateHold * 0.001 * sr);
     this.gEnvAtk = TC(0.05, sr); this.gEnvRel = TC(25, sr);
-    this.gateRatio = p.gateExp ? 2 : 1000;           // expander 1:2, or a hard gate
+    this.gateRatio = p.gateExp ? 4 : 1000;           // expander 1:4 (steep), or a hard gate
     this.cAtk = TC(p.compAttack, sr); this.cRel = TC(p.compRelease, sr);
     this.cEnvAtk = TC(0.02, sr); this.cEnvRel = TC(8, sr);   // sidechain peak follower
     this.trimT = LIN(p.trim); this.makeupT = LIN(p.compMakeup);
@@ -117,7 +117,7 @@ class StripProcessor extends AudioWorkletProcessor {
           if (lvl >= thr) { this.gateOpen = true; this.holdCount = this.holdSamples; }
           else if (this.holdCount > 0) { this.holdCount--; }
           else { this.gateOpen = false; red = Math.min(p.gateRange, (thr - lvl) * (this.gateRatio - 1)); }
-          const target = LIN(-red);
+          const target = red >= 79 ? 0 : LIN(-red);   // RANGE at FULL = dead silent
           this.gateGain += (target > this.gateGain ? this.gAtk : this.gRel) * (target - this.gateGain);
           x *= this.gateGain;
           const gr = -DB(this.gateGain + 1e-9); if (gr > this.gateRedMax) this.gateRedMax = gr;
