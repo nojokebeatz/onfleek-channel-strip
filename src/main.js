@@ -16,7 +16,7 @@ const statePath = () => path.join(app.getPath('userData'), 'state.json');
 
 function createWindow() {
   win = new BrowserWindow({
-    width: 600, height: 1060, minWidth: 340, minHeight: 600, show: !startHidden,
+    width: 1560, height: 800, minWidth: 1000, minHeight: 560, show: !startHidden,
     frame: false, backgroundColor: '#121315', title: 'OnFleek Channel Strip',
     icon: path.join(__dirname, '..', 'build', 'icon.png'),
     webPreferences: {

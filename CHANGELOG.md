@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.2.0 — 2026-09-12 — desktop layout
+- New side-by-side layout: five columns (SETUP+OUTPUT, INPUT+GATE, COMPRESSOR+DE-ESSER, EQUALIZER,
+  METERS+FADER) fill the whole window. No more black borders. Built for a PC screen, not phones.
+- Every label, value and button is bigger. Knobs, meters and the EQ curve are larger too.
+- Window opens at 1560 x 800 and only zooms down if you make it smaller than that.
+- Spelling: EQUALIZER.
+
 ## 2.1.0 — 2026-09-12
 - DE-ESSER section (after the compressor): FREQ + AMOUNT knobs, SSS lamp and dB readout. Tames sharp "s".
 - SET LEVEL button: talk normally for 5 s and TRIM moves so your loudest bits land near -10 dBFS.

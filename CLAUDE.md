@@ -74,6 +74,12 @@ with the window not shown. Mute never persists across launches (reset to 0 on lo
   `set <prev>` then quits (guarded by `restoredOnQuit`). Boot re-applies `want` if `state.wantDefault`.
 - NR = `noiseSuppression: !!state.nr` in `micConstraints()`; toggling restarts both engines.
 
+## Layout (2.2.0): desktop, five columns, PC only
+`#strip` fills the window (flex column: rail-top, updateBar, `.plate` = five `.col`). Natural size
+`NAT_W x NAT_H` = 1560 x 760; `fit()` zooms DOWN only (never up) and sets the strip's logical size to
+w/scale x h/scale so it always fills the viewport. Column min-widths must sum to <= NAT_W
+(330 + 312 + 312 + 356 + 230 = 1540). Meter canvas draws in 150x270 space zoomed by `MK` onto 190x340.
+
 ## Traps
 - Chromium hides device names until the mic permission is granted once — `unlockLabels()` does that.
 - `AudioContext.setSinkId('')` = default output; `'default'` id must be mapped to `''`.

@@ -125,7 +125,7 @@ function faderDbToPos(d) {
   for (let i = 1; i < FADER_ANCHORS.length; i++) { const [p0, d0] = FADER_ANCHORS[i - 1], [p1, d1] = FADER_ANCHORS[i]; if (d <= d1) return p0 + (p1 - p0) * (d - d0) / (d1 - d0); }
   return 1;
 }
-const TRACK_TOP = 10, TRACK_H = 310;
+const TRACK_TOP = 10, TRACK_H = 230;
 function buildFader() {
   const scale = $('#fscale');
   [[10, '+10'], [5, '+5'], [0, '0'], [-5, '5'], [-10, '10'], [-20, '20'], [-30, '30'], [-40, '40'], [-60, '60'], [-90, '∞']].forEach(([d, t]) => {
@@ -339,7 +339,8 @@ function flashLcd(text, ms = 3000) { lcd(text); setTimeout(() => { if (running &
 /* ---------- meters ---------- */
 const cv = $('#meters'), g = cv.getContext('2d');
 const DPR = Math.min(2, window.devicePixelRatio || 1);
-cv.width = 150 * DPR; cv.height = 270 * DPR; g.scale(DPR, DPR);
+const MK = 340 / 270;   // meter zoom: the drawing code thinks in 150x270, the canvas is 190x340
+cv.width = Math.round(190 * DPR); cv.height = Math.round(340 * DPR); g.scale(DPR * MK, DPR * MK);
 const disp = { in: -90, out: -90, gr: 0, inHold: -90, outHold: -90, inHoldT: 0, outHoldT: 0, clipIn: 0, clipOut: 0, de: 0 };
 const SEGS = 30;
 function segDb(k) { // segment k (0 = bottom) lights at this dB
@@ -428,7 +429,7 @@ function loop(t) {
   if (meter.inPk >= 0.99) disp.clipIn = 2; else disp.clipIn -= dt;
   if (meter.outPk >= 0.99) disp.clipOut = 2; else disp.clipOut -= dt;
   $('#clipIn').classList.toggle('on', disp.clipIn > 0); $('#clipOut').classList.toggle('on', disp.clipOut > 0);
-  g.clearRect(0, 0, 150, 270);
+  g.clearRect(0, 0, 151, 270);
   drawColumn(18, disp.in, disp.inHold, 'IN'); drawGR(60, disp.gr); drawColumn(114, disp.out, disp.outHold, 'OUT', true); drawScale();
   $('#grReadout').textContent = disp.gr.toFixed(1);
   const gateOn = running && state.params.gateIn && !state.params.bypass;
@@ -444,7 +445,8 @@ function loop(t) {
 
 /* ---------- EQ response curve ---------- */
 const cvE = $('#eqCurve'), gE = cvE.getContext('2d');
-cvE.width = 330 * DPR; cvE.height = 56 * DPR; gE.scale(DPR, DPR);
+const EQW = 330, EQH = 80;
+cvE.width = EQW * DPR; cvE.height = EQH * DPR; gE.scale(DPR, DPR);
 function coefs(type, f, Q, g, sr) { // same RBJ math as the worklet, normalised by a0
   const A = Math.pow(10, g / 40), w = 2 * Math.PI * f / sr, c = Math.cos(w), s = Math.sin(w); let b0, b1, b2, a0, a1, a2;
   if (type === 'lowpass') { const a = s / (2 * Q); b0 = (1 - c) / 2; b1 = 1 - c; b2 = (1 - c) / 2; a0 = 1 + a; a1 = -2 * c; a2 = 1 - a; }
@@ -468,7 +470,7 @@ function onePoleHpDb(f, w, sr) {
 }
 const fx = (f, W) => W * Math.log(f / 20) / Math.log(1000);
 function drawCurve() {
-  const p = state.params, sr = ctx ? ctx.sampleRate : 48000, W = 330, H = 56, RANGE = 18;
+  const p = state.params, sr = ctx ? ctx.sampleRate : 48000, W = EQW, H = EQH, RANGE = 18;
   const active = !p.bypass && (p.eqIn || p.filtersIn), stages = [];
   if (!p.bypass && p.filtersIn) { stages.push(coefs('highpass', p.hpf, 1.0, 0, sr)); stages.push(coefs('lowpass', p.lpf, 0.7071, 0, sr)); }
   if (!p.bypass && p.eqIn) {
@@ -482,9 +484,9 @@ function drawCurve() {
   [-12, -6, 6, 12].forEach(d => { const y = Math.round(H / 2 - d * (H / 2) / RANGE) + .5; gE.moveTo(0, y); gE.lineTo(W, y); });
   gE.stroke();
   gE.strokeStyle = 'rgba(255,255,255,.2)'; gE.beginPath(); gE.moveTo(0, H / 2 + .5); gE.lineTo(W, H / 2 + .5); gE.stroke();
-  gE.fillStyle = 'rgba(255,255,255,.3)'; gE.font = '600 6.5px Bahnschrift, "Arial Narrow", sans-serif'; gE.textAlign = 'left';
+  gE.fillStyle = 'rgba(255,255,255,.35)'; gE.font = '600 9px Bahnschrift, "Arial Narrow", sans-serif'; gE.textAlign = 'left';
   [['100', 100], ['1k', 1000], ['10k', 10000]].forEach(([t, f]) => gE.fillText(t, fx(f, W) + 2, H - 2));
-  gE.textAlign = 'right'; gE.fillText('+12', W - 2, 8); gE.fillText('-12', W - 2, H - 9);
+  gE.textAlign = 'right'; gE.fillText('+12', W - 3, 11); gE.fillText('-12', W - 3, H - 12);
   gE.beginPath();
   for (let x = 0; x <= W; x++) {
     const f = 20 * Math.pow(1000, x / W), w = 2 * Math.PI * f / sr; let d = 0;
@@ -502,10 +504,12 @@ function drawCurve() {
 const strip = $('#strip');
 let scaleNow = 1;
 const currentScale = () => scaleNow;
+const NAT_W = 1560, NAT_H = 760;   // the layout is designed for this size; smaller windows zoom it down
 function fit() {
-  const w = window.innerWidth, h = window.innerHeight, natH = strip.offsetHeight, natW = 560;
-  scaleNow = Math.min(w / natW, h / natH);
-  strip.style.transform = `translateX(-50%) scale(${scaleNow})`;
+  const w = window.innerWidth, h = window.innerHeight;
+  scaleNow = Math.min(1, w / NAT_W, h / NAT_H);
+  strip.style.width = (w / scaleNow) + 'px'; strip.style.height = (h / scaleNow) + 'px';
+  strip.style.transform = scaleNow < 1 ? `scale(${scaleNow})` : 'none';
 }
 
 /* ---------- updates ---------- */
@@ -669,7 +673,7 @@ async function boot() {
     else lcd(/NOTFOUND/.test(r) ? `WINDOWS CANNOT SEE \u201c${want}\u201d YET \u00b7 RESTART THE PC` : 'COULD NOT SET DEFAULT: ' + String(r).slice(0, 50), true);
   };
   navigator.mediaDevices.addEventListener('devicechange', () => { refreshDevices(); clearTimeout(setupTimer); setupTimer = setTimeout(refreshDefaults, 1500); });
-  window.addEventListener('resize', fit); new ResizeObserver(fit).observe(strip); fit();
+  window.addEventListener('resize', fit); fit();
   requestAnimationFrame(loop);
   await unlockLabels(); await refreshDevices();
   await start();

@@ -20,14 +20,17 @@
   <div id="updateBar" hidden><span id="updateText">New version available</span><button id="updateBtn">GET IT</button></div>
 
   <div class="plate">
-    <div class="col-main">
 
+    <!-- ===== column 1: setup + output ===== -->
+    <div class="col col-setup">
       <section class="sec sec-patch">
         <div class="sec-head"><span class="sec-title">SETUP</span>
           <div class="sec-btns"><button class="tog" data-lamp="#c8ff5a" id="btnBoot" title="Start with Windows, hidden in the tray">BOOT</button><button class="pwr" id="btnPower"><i class="led green"></i>ON</button></div>
         </div>
         <div class="patchrow">
           <label class="patch"><span>MIC IN</span><select id="selIn"></select></label>
+        </div>
+        <div class="patchrow">
           <label class="patch"><span>HEADPHONES</span><select id="selPhones"></select></label>
         </div>
         <div class="patchrow status">
@@ -43,15 +46,35 @@
         </div>
       </section>
 
+      <section class="sec sec-out">
+        <div class="sec-head"><span class="sec-title">OUTPUT</span>
+          <div class="sec-btns"><span class="ledlabel"><i class="led amber" id="ledLim"></i></span><button class="tog" data-tog="limIn" data-lamp="#ffb02e" title="Safety limiter: nothing louder than -1 dB gets out">LIM</button></div>
+        </div>
+        <div class="patchrow">
+          <label class="patch"><span>PRESET</span><select id="selPreset"></select></label>
+        </div>
+        <div class="knobrow masters">
+          <div class="slot tozoom"><span class="ledlabel big"><i class="led green" id="ledZoom"></i>TO ZOOM</span><span class="tiny" id="zoomText">Virtual Mic Out</span><span class="tiny">WHAT CALLERS HEAR</span></div>
+          <div class="knob c-black" data-knob="phones" data-label="PHONES"></div>
+          <div class="slot"><button class="tog" id="btnMon" data-lamp="#c8ff5a" title="Hear yourself in the headphones">MON</button><span class="tiny" id="monText">MON OFF</span></div>
+        </div>
+        <div class="bigbtns">
+          <button class="tog wide" data-tog="bypass" data-lamp="#ff3b30">BYPASS</button>
+          <button class="tog wide" data-tog="mute" data-lamp="#ff3b30" title="Ctrl+Shift+M works in any app">MUTE</button>
+        </div>
+      </section>
+    </div>
+
+    <!-- ===== column 2: input + gate ===== -->
+    <div class="col">
       <section class="sec sec-input">
         <div class="sec-head"><span class="sec-title">INPUT · FILTERS</span>
-          <div class="sec-btns"><button class="tog wide" id="btnLevel" data-lamp="#c8ff5a" title="Talk normally for 5 seconds: TRIM sets itself">SET LEVEL</button><button class="tog" id="btnNr" data-lamp="#4cff6a" title="Noise cleanup for fans, hum and hiss (Windows audio engine)">NR</button><button class="tog" data-tog="filtersIn">IN</button></div>
+          <div class="sec-btns"><button class="tog wide" id="btnLevel" data-lamp="#c8ff5a" title="Talk normally for 5 seconds: TRIM sets itself">SET LEVEL</button><button class="tog" id="btnNr" data-lamp="#4cff6a" title="Noise cleanup for fans, hum and hiss">NR</button><button class="tog" data-tog="filtersIn">IN</button></div>
         </div>
         <div class="knobrow">
           <div class="knob c-red" data-knob="trim" data-label="TRIM"></div>
           <div class="knob c-black" data-knob="hpf" data-label="HI PASS"></div>
           <div class="knob c-black" data-knob="lpf" data-label="LO PASS"></div>
-          <div class="slot"><span class="tiny">18 dB/oct</span><span class="tiny">12 dB/oct</span></div>
         </div>
       </section>
 
@@ -63,19 +86,21 @@
           <div class="knob c-grey" data-knob="gateThresh" data-label="THRESHOLD"></div>
           <div class="knob c-grey" data-knob="gateRange" data-label="RANGE"></div>
           <div class="knob c-grey" data-knob="gateAttack" data-label="ATTACK"></div>
-          <div class="slot ledstack">
-            <span class="ledlabel"><i class="led green" id="ledGateOpen"></i>OPEN</span>
-            <span class="ledlabel"><i class="led amber" id="ledGateRed"></i>REDUCE</span>
-          </div>
         </div>
         <div class="knobrow">
           <div class="knob c-grey" data-knob="gateRelease" data-label="RELEASE"></div>
           <div class="knob c-grey" data-knob="gateHold" data-label="HOLD"></div>
-          <div class="slot"></div>
-          <div class="slot"><span class="tiny">EXP = 1:2</span><span class="tiny">OUT = HARD GATE</span></div>
+          <div class="slot ledstack">
+            <span class="ledlabel"><i class="led green" id="ledGateOpen"></i>OPEN</span>
+            <span class="ledlabel"><i class="led amber" id="ledGateRed"></i>REDUCE</span>
+            <span class="tiny">EXP = 1:2 · OUT = HARD GATE</span>
+          </div>
         </div>
       </section>
+    </div>
 
+    <!-- ===== column 3: compressor + de-esser ===== -->
+    <div class="col">
       <section class="sec sec-comp">
         <div class="sec-head"><span class="sec-title">COMPRESSOR</span>
           <div class="sec-btns"><button class="tog" data-tog="compIn">IN</button></div>
@@ -84,14 +109,13 @@
           <div class="knob c-cream" data-knob="compThresh" data-label="THRESHOLD"></div>
           <div class="knob c-cream" data-knob="compRatio" data-label="RATIO"></div>
           <div class="knob c-cream" data-knob="compAttack" data-label="ATTACK"></div>
-          <div class="slot"><span class="grbig" id="grReadout">0.0</span><span class="tiny">dB GR</span></div>
         </div>
         <div class="knobrow">
           <div class="knob c-cream" data-knob="compRelease" data-label="RELEASE"></div>
           <div class="knob c-cream" data-knob="compMakeup" data-label="MAKE UP"></div>
           <div class="knob c-cream" data-knob="compMix" data-label="MIX"></div>
-          <div class="slot"><span class="tiny">SOFT KNEE</span><span class="tiny">6 dB</span></div>
         </div>
+        <div class="readrow"><span class="grbig" id="grReadout">0.0</span><span class="tiny">dB GAIN REDUCTION · SOFT KNEE 6 dB</span></div>
       </section>
 
       <section class="sec sec-de">
@@ -101,16 +125,18 @@
         <div class="knobrow">
           <div class="knob c-cream" data-knob="deFreq" data-label="FREQ"></div>
           <div class="knob c-cream" data-knob="deAmt" data-label="AMOUNT"></div>
-          <div class="slot ledstack"><span class="ledlabel"><i class="led amber" id="ledDe"></i>SSS</span><span class="tiny">TAMES SHARP S SOUNDS</span></div>
-          <div class="slot"><span class="grbig" id="deReadout">0.0</span><span class="tiny">dB</span></div>
+          <div class="slot ledstack"><span class="ledlabel"><i class="led amber" id="ledDe"></i>SSS</span><span class="grbig" id="deReadout">0.0</span><span class="tiny">dB · TAMES SHARP S</span></div>
         </div>
       </section>
+    </div>
 
+    <!-- ===== column 4: equalizer ===== -->
+    <div class="col col-eq">
       <section class="sec sec-eq">
-        <div class="sec-head"><span class="sec-title">EQUALISER</span>
+        <div class="sec-head"><span class="sec-title">EQUALIZER</span>
           <div class="sec-btns"><button class="tog" data-tog="eqIn">IN</button></div>
         </div>
-        <canvas id="eqCurve" class="eqcurve" width="330" height="56"></canvas>
+        <canvas id="eqCurve" class="eqcurve" width="330" height="80"></canvas>
         <div class="knobrow band"><span class="bandtag hf">HF</span>
           <div class="knob c-red" data-knob="hfFreq" data-label="FREQ"></div>
           <div class="knob c-red" data-knob="hfGain" data-label="GAIN"></div>
@@ -132,30 +158,13 @@
           <div class="slot"><button class="tog" data-tog="lfBell" data-lamp="#e8e8ff">BELL</button><span class="tiny">SHELF / BELL</span></div>
         </div>
       </section>
-
-      <section class="sec sec-out">
-        <div class="sec-head"><span class="sec-title">OUTPUT</span>
-          <div class="sec-btns">
-            <label class="patch preset"><span>PRESET</span><select id="selPreset"></select></label>
-            <span class="ledlabel"><i class="led amber" id="ledLim"></i></span><button class="tog" data-tog="limIn" data-lamp="#ffb02e" title="Safety limiter: nothing louder than -1 dB gets out">LIM</button>
-            <button class="tog wide" data-tog="bypass" data-lamp="#ff3b30">BYPASS</button>
-            <button class="tog wide" data-tog="mute" data-lamp="#ff3b30" title="Ctrl+Shift+M works in any app">MUTE</button>
-          </div>
-        </div>
-        <div class="knobrow masters">
-          <div class="slot tozoom"><span class="ledlabel big"><i class="led green" id="ledZoom"></i>TO ZOOM</span><span class="tiny" id="zoomText">Virtual Mic Out</span><span class="tiny">WHAT CALLERS HEAR</span></div>
-          <div class="knob c-black" data-knob="phones" data-label="PHONES"></div>
-          <div class="slot"><button class="tog" id="btnMon" data-lamp="#c8ff5a" title="Hear yourself in the headphones">MON</button><span class="tiny">HEADPHONES</span></div>
-          <div class="slot"><span class="tiny" id="monText">MON OFF</span></div>
-        </div>
-      </section>
-
     </div>
 
-    <div class="col-rail">
+    <!-- ===== column 5: meters + fader ===== -->
+    <div class="col col-rail">
       <div class="meters">
         <div class="clips"><span class="ledlabel"><i class="led red" id="clipIn"></i>CLIP</span><span class="ledlabel"><i class="led red" id="clipOut"></i>CLIP</span></div>
-        <canvas id="meters" width="150" height="270"></canvas>
+        <canvas id="meters" width="190" height="340"></canvas>
         <div class="verdict" id="verdict"><span class="lcdsmall" id="verdictText">LEVEL: —</span></div>
       </div>
       <div class="faderbox">
@@ -169,8 +178,8 @@
       </div>
       <i class="screw br"></i>
     </div>
-  </div>
 
+  </div>
 </div>
 </div>
 <script src="app.js"></script>
