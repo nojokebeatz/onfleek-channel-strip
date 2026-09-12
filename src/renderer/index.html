@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://api.github.com; media-src 'self' mediastream:;">
+<title>OnFleek Channel Strip</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="viewport">
+<div id="strip">
+
+  <div class="rail-top" id="titlebar">
+    <i class="screw"></i>
+    <div class="brand"><span class="logo">OnFleek</span><span class="model">CS-9000 · VOCAL CHANNEL STRIP</span><span class="ver" id="verLabel"></span></div>
+    <div class="winbtns"><button id="btnMin" title="Minimize">&#8211;</button><button id="btnClose" title="Close">&#215;</button></div>
+    <i class="screw"></i>
+  </div>
+
+  <div id="updateBar" hidden><span id="updateText">New version available</span><button id="updateBtn">GET IT</button></div>
+
+  <div class="plate">
+    <div class="col-main">
+
+      <section class="sec sec-patch">
+        <div class="sec-head"><span class="sec-title">PATCH</span>
+          <div class="sec-btns"><button class="pwr" id="btnPower"><i class="led green"></i>ON</button></div>
+        </div>
+        <div class="patchrow">
+          <label class="patch"><span>MIC IN</span><select id="selIn"></select></label>
+          <label class="patch"><span>SEND TO</span><select id="selOut"></select></label>
+        </div>
+        <div class="patchrow status">
+          <span class="lcd" id="lcd">STANDBY</span>
+          <span class="ledlabel"><i class="led amber" id="ledCable"></i>CABLE</span>
+          <button class="tog" data-lamp="#c8ff5a" id="btnListen">LISTEN</button>
+        </div>
+        <div class="hint" id="cableHint" hidden>No virtual cable found. Install the free <a href="#" id="cableLink">VB-CABLE</a>, then pick “CABLE Input” under SEND TO. Other apps then use “CABLE Output” as their mic.</div>
+      </section>
+
+      <section class="sec sec-input">
+        <div class="sec-head"><span class="sec-title">INPUT · FILTERS</span>
+          <div class="sec-btns"><button class="tog" data-tog="filtersIn">IN</button></div>
+        </div>
+        <div class="knobrow">
+          <div class="knob c-red" data-knob="trim" data-label="TRIM"></div>
+          <div class="knob c-black" data-knob="hpf" data-label="HI PASS"></div>
+          <div class="knob c-black" data-knob="lpf" data-label="LO PASS"></div>
+          <div class="slot"><span class="tiny">18 dB/oct</span><span class="tiny">12 dB/oct</span></div>
+        </div>
+      </section>
+
+      <section class="sec sec-gate">
+        <div class="sec-head"><span class="sec-title">GATE / EXPANDER</span>
+          <div class="sec-btns"><button class="tog" data-tog="gateExp" data-lamp="#4cff6a">EXP</button><button class="tog" data-tog="gateIn">IN</button></div>
+        </div>
+        <div class="knobrow">
+          <div class="knob c-grey" data-knob="gateThresh" data-label="THRESHOLD"></div>
+          <div class="knob c-grey" data-knob="gateRange" data-label="RANGE"></div>
+          <div class="knob c-grey" data-knob="gateAttack" data-label="ATTACK"></div>
+          <div class="slot ledstack">
+            <span class="ledlabel"><i class="led green" id="ledGateOpen"></i>OPEN</span>
+            <span class="ledlabel"><i class="led amber" id="ledGateRed"></i>REDUCE</span>
+          </div>
+        </div>
+        <div class="knobrow">
+          <div class="knob c-grey" data-knob="gateRelease" data-label="RELEASE"></div>
+          <div class="knob c-grey" data-knob="gateHold" data-label="HOLD"></div>
+          <div class="slot"></div>
+          <div class="slot"><span class="tiny">EXP = 1:2</span><span class="tiny">OUT = HARD GATE</span></div>
+        </div>
+      </section>
+
+      <section class="sec sec-comp">
+        <div class="sec-head"><span class="sec-title">COMPRESSOR</span>
+          <div class="sec-btns"><button class="tog" data-tog="compIn">IN</button></div>
+        </div>
+        <div class="knobrow">
+          <div class="knob c-cream" data-knob="compThresh" data-label="THRESHOLD"></div>
+          <div class="knob c-cream" data-knob="compRatio" data-label="RATIO"></div>
+          <div class="knob c-cream" data-knob="compAttack" data-label="ATTACK"></div>
+          <div class="slot"><span class="grbig" id="grReadout">0.0</span><span class="tiny">dB GR</span></div>
+        </div>
+        <div class="knobrow">
+          <div class="knob c-cream" data-knob="compRelease" data-label="RELEASE"></div>
+          <div class="knob c-cream" data-knob="compMakeup" data-label="MAKE UP"></div>
+          <div class="knob c-cream" data-knob="compMix" data-label="MIX"></div>
+          <div class="slot"><span class="tiny">SOFT KNEE</span><span class="tiny">6 dB</span></div>
+        </div>
+      </section>
+
+      <section class="sec sec-eq">
+        <div class="sec-head"><span class="sec-title">EQUALISER</span>
+          <div class="sec-btns"><button class="tog" data-tog="eqIn">IN</button></div>
+        </div>
+        <div class="knobrow band"><span class="bandtag hf">HF</span>
+          <div class="knob c-red" data-knob="hfFreq" data-label="FREQ"></div>
+          <div class="knob c-red" data-knob="hfGain" data-label="GAIN"></div>
+          <div class="slot"><button class="tog" data-tog="hfBell" data-lamp="#e8e8ff">BELL</button><span class="tiny">SHELF / BELL</span></div>
+        </div>
+        <div class="knobrow band"><span class="bandtag hmf">HMF</span>
+          <div class="knob c-green" data-knob="hmfFreq" data-label="FREQ"></div>
+          <div class="knob c-green" data-knob="hmfGain" data-label="GAIN"></div>
+          <div class="knob c-green sm" data-knob="hmfQ" data-label="Q"></div>
+        </div>
+        <div class="knobrow band"><span class="bandtag lmf">LMF</span>
+          <div class="knob c-blue" data-knob="lmfFreq" data-label="FREQ"></div>
+          <div class="knob c-blue" data-knob="lmfGain" data-label="GAIN"></div>
+          <div class="knob c-blue sm" data-knob="lmfQ" data-label="Q"></div>
+        </div>
+        <div class="knobrow band"><span class="bandtag lf">LF</span>
+          <div class="knob c-brown" data-knob="lfFreq" data-label="FREQ"></div>
+          <div class="knob c-brown" data-knob="lfGain" data-label="GAIN"></div>
+          <div class="slot"><button class="tog" data-tog="lfBell" data-lamp="#e8e8ff">BELL</button><span class="tiny">SHELF / BELL</span></div>
+        </div>
+      </section>
+
+      <section class="sec sec-out">
+        <div class="sec-head"><span class="sec-title">OUTPUT</span>
+          <div class="sec-btns">
+            <label class="patch preset"><span>PRESET</span><select id="selPreset"></select></label>
+            <button class="tog wide" data-tog="bypass" data-lamp="#ff3b30">BYPASS</button>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <div class="col-rail">
+      <div class="meters">
+        <div class="clips"><span class="ledlabel"><i class="led red" id="clipIn"></i>CLIP</span><span class="ledlabel"><i class="led red" id="clipOut"></i>CLIP</span></div>
+        <canvas id="meters" width="150" height="270"></canvas>
+      </div>
+      <div class="faderbox">
+        <div class="faderval" id="faderVal">0.0 dB</div>
+        <div class="fader" id="fader">
+          <div class="fscale" id="fscale"></div>
+          <div class="ftrack"></div>
+          <div class="fcap" id="fcap"><i></i></div>
+        </div>
+        <div class="scribble"><span>VOX</span></div>
+      </div>
+      <i class="screw br"></i>
+    </div>
+  </div>
+
+</div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

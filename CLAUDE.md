@@ -1,0 +1,38 @@
+# OnFleek Channel Strip — SSL-style mic processor for Windows (desktop app)
+
+- **What:** Downloadable Windows desktop app. Takes a live mic (the "Virtual MIC" USB mic), runs it through
+  filters → gate/expander → compressor → 4-band EQ → fader, and plays the result into a virtual cable so
+  other Windows apps can pick the processed signal as their microphone.
+- **Folder:** C:\Users\nojok\Docker\onfleek-channel-strip  (also reachable as C:\Docker\onfleek-channel-strip)
+- **Version:** see `package.json` (shown in the app's top rail). Bump on every release + add a `CHANGELOG.md` line.
+- **Download:** GitHub Releases on repo `nojokebeatz/onfleek-channel-strip` (installer + portable exe).
+  The app checks that repo's latest release on launch and shows a "new version" bar.
+- **Not a Docker/web app** — no port, no tunnel, no `onfleek ship`. Build locally, upload to GitHub Releases.
+
+## Stack
+- Electron (frameless window) + AudioWorklet DSP. No native code.
+- `src/main.js` — window, permissions, state file (`%APPDATA%\onfleek-channel-strip\state.json`), IPC.
+- `src/renderer/app.js` — knobs/toggles/fader/meters/presets/devices/update check.
+- `src/renderer/worklet/strip-processor.js` — ALL the audio math (biquads, gate, comp, EQ).
+- `test/dsp-test.js` — runs the worklet in plain Node and checks levels. `npm test` must say ALL PASS.
+
+## Build + release
+```
+npm test                                   # DSP checks
+npx electron . --screenshot=C:\Temp\cs.png # look at the UI without a mic
+npm run dist                               # dist\OnFleek-Channel-Strip-Setup-<ver>.exe + -Portable-<ver>.exe
+gh release create v<ver> dist\*.exe --title "v<ver>" --notes-file <notes>
+```
+
+## How the routing works (tell the user in plain words)
+Windows has no built-in "fake microphone". The app plays its processed sound into **VB-CABLE** (free driver,
+https://vb-audio.com/Cable/). In the app: MIC IN = Virtual MIC, SEND TO = "CABLE Input". In Zoom/Discord/OBS:
+mic = "CABLE Output". The LISTEN button temporarily sends the output to the default speakers instead.
+
+## Traps
+- Chromium hides device names until the mic permission is granted once — `unlockLabels()` does that.
+- `AudioContext.setSinkId('')` = default output; `'default'` id must be mapped to `''`.
+- Fit-to-window uses a ResizeObserver on `#strip` because the cable hint changes the panel height after boot.
+- Compressor sidechain needs the peak follower (`compEnv`); reading raw samples under-reads GR by ~1 dB.
+- electron-builder on Windows may fail extracting winCodeSign (symlink privilege). Fix = run the build
+  through the elevation helper, or set `win.signAndEditExecutable=false` (loses the exe icon).
