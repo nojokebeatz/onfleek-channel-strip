@@ -62,8 +62,51 @@ const state = { params: DEFAULT_PARAMS(), inputId: '', outputId: '', phonesId: '
 let ctx = null, node = null, stream = null, running = false, version = '0.0.0';
 let monCtx = null, monNode = null, monStream = null, monGain = null, lastOuts = [], setupTimer = 0, defaults = null, prevDefault = '';
 let learning = false, runLcd = 'STANDBY', reconnectTimer = 0, lastIns = [], formats = null;
-const meter = { inPk: 0, outPk: 0, gr: 0, gateRed: 0, gateOpen: false, lim: 0, de: 0 };
-let leveling = false;
+const meter = { inPk: 0, outPk: 0, gr: 0, gateRed: 0, gateOpen: false, lim: 0, de: 0, gateLvl: -120, clips: 0, nans: 0, t: 0 };
+const GATE_HYST = 4;   // must match HYST in the worklet
+// Health counters: audio-thread stalls, clock slips, hard clips. Shown on the LCD, written to the log.
+const health = { hiccups: 0, clips: 0, nans: 0, lastT: 0, wall: 0, ct: 0 };
+const healthText = () => (health.hiccups ? ` · ${health.hiccups} STALLS` : '') + (health.clips ? ` · ${health.clips} CLIPS` : '');
+let leveling = false, recTimer = 0;
+function wavStereo16(l, r, sr) {
+  const n = l.length, buf = new ArrayBuffer(44 + n * 4), v = new DataView(buf);
+  const w = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+  w(0, 'RIFF'); v.setUint32(4, 36 + n * 4, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 2, true);
+  v.setUint32(24, sr, true); v.setUint32(28, sr * 4, true); v.setUint16(32, 4, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * 4, true);
+  let o = 44; for (let i = 0; i < n; i++) { v.setInt16(o, Math.max(-1, Math.min(1, l[i])) * 32767, true); v.setInt16(o + 2, Math.max(-1, Math.min(1, r[i])) * 32767, true); o += 4; }
+  return buf;
+}
+async function finishRecording(d) {
+  clearInterval(recTimer); $('#btnRec').classList.remove('on');
+  try { const name = await window.cs.saveCapture(new Uint8Array(wavStereo16(d.inBuf, d.outBuf, d.sr))); log('capture saved ' + name + ' sr=' + d.sr); flashLcd('RECORDED · PRESS SEND LOG TO SEND IT TO CLAUDE', 6000); }
+  catch (e) { lcd('CAPTURE FAILED: ' + (e.message || e), true); }
+}
+/* ---------- lamps: every on/off button gets a real lamp element; GSAP animates state changes ---------- */
+function setupLamps() {
+  $$('.tog').forEach(b => { if (!$('.lamp', b)) { const l = document.createElement('i'); l.className = 'lamp'; b.prepend(l); } if (b.dataset.lamp) b.style.setProperty('--lamp', b.dataset.lamp); b._on = b.classList.contains('on'); });
+  if (!window.gsap) return;
+  const lampColor = (b) => (b.dataset.lamp || getComputedStyle(b).getPropertyValue('--lamp') || '#ffb02e').trim();
+  const animateToggle = (b, on) => {
+    const lamp = $('.lamp', b), c = lampColor(b);
+    gsap.killTweensOf(b); gsap.to(b, { y: on ? 1 : 0, duration: 0.12, ease: 'power2.out' });
+    if (!lamp) return; gsap.killTweensOf(lamp);
+    if (on) {
+      gsap.fromTo(lamp, { scaleX: 1, scaleY: 1 }, { scaleX: 1.25, scaleY: 1.9, duration: 0.14, yoyo: true, repeat: 1, ease: 'power2.out' });
+      gsap.fromTo(lamp, { boxShadow: `0 0 2px ${c}` }, { boxShadow: `0 0 16px ${c}, 0 0 4px rgba(255,255,255,.8)`, duration: 0.45, ease: 'power2.out', clearProps: 'boxShadow' });
+    } else {
+      gsap.fromTo(lamp, { boxShadow: `0 0 12px ${c}` }, { boxShadow: '0 0 0px rgba(0,0,0,0)', duration: 0.35, ease: 'power2.out', clearProps: 'boxShadow' });
+    }
+  };
+  const animateLed = (led, on) => { gsap.killTweensOf(led); if (on) gsap.fromTo(led, { scale: 1 }, { scale: 1.7, duration: 0.11, yoyo: true, repeat: 1, ease: 'power2.out' }); else gsap.fromTo(led, { scale: 1.15 }, { scale: 1, duration: 0.18, ease: 'power2.out' }); };
+  const obs = new MutationObserver(muts => muts.forEach(m => {
+    const el = m.target, on = el.classList.contains('on');
+    if (el._on === on) return; el._on = on;
+    if (el.classList.contains('tog')) animateToggle(el, on); else animateLed(el, on);
+  }));
+  $$('.tog, .led').forEach(el => { el._on = el.classList.contains('on'); obs.observe(el, { attributes: true, attributeFilter: ['class'] }); });
+  // press feel on click, before the state flips
+  $$('.tog').forEach(b => b.addEventListener('pointerdown', () => gsap.fromTo(b, { scale: 0.96 }, { scale: 1, duration: 0.22, ease: 'back.out(3)' })));
+}
 
 const toNorm = (spec, v) => spec.log ? Math.log(v / spec.min) / Math.log(spec.max / spec.min) : (v - spec.min) / (spec.max - spec.min);
 const fromNorm = (spec, n) => { n = clamp(n, 0, 1); return spec.log ? spec.min * Math.pow(spec.max / spec.min, n) : spec.min + (spec.max - spec.min) * n; };
@@ -214,7 +257,7 @@ function buildPresets() {
 }
 
 /* ---------- audio engine ---------- */
-const lcd = (t, err) => { const e = $('#lcd'); e.textContent = t; e.classList.toggle('err', !!err); log((err ? 'LCD ERR: ' : 'LCD: ') + t); };
+const lcd = (t, err, quiet) => { const e = $('#lcd'); e.textContent = t; e.classList.toggle('err', !!err); if (!quiet) log((err ? 'LCD ERR: ' : 'LCD: ') + t); };
 // The cable: a playback device whose sound comes back out as a microphone. VB-CABLE, or Voicemeeter's.
 const CABLE_RX = /cable input|virtual mic feed|voicemeeter (aux |vaio3 )?input/i;
 const MIC_NAME = 'Virtual Mic Out', FEED_NAME = 'Virtual Mic Feed';
@@ -384,12 +427,22 @@ async function start() {
     if (track) track.addEventListener('ended', () => { if (running) { lcd('MIC LOST · RECONNECTING…', true); scheduleReconnect(); } });
     const src = ctx.createMediaStreamSource(stream);
     node = new AudioWorkletNode(ctx, 'strip-processor', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] });
-    node.port.onmessage = e => { if (e.data.type === 'meter') Object.assign(meter, e.data); };
+    node.port.onmessage = e => {
+      const d = e.data;
+      if (d.type === 'meter') {
+        Object.assign(meter, d);
+        if (d.clips) health.clips += d.clips;
+        if (d.nans) { health.nans += d.nans; log('NaN in audio path: ' + d.nans); }
+        // the worklet stamps each report with its own clock; a gap far longer than the report interval = the audio thread stalled
+        if (health.lastT && d.t - health.lastT > 200) { health.hiccups++; log(`AUDIO THREAD STALL ${d.t - health.lastT} ms (total ${health.hiccups})`); }
+        health.lastT = d.t;
+      } else if (d.type === 'recDone') finishRecording(d);
+    };
     src.connect(node).connect(ctx.destination);
     sendParams();
     await applySink();
     await ctx.resume();
-    running = true;
+    running = true; health.hiccups = 0; health.clips = 0; health.nans = 0; health.lastT = 0; health.wall = 0;
     $('#btnPower').classList.add('on'); $('.led', $('#btnPower')).classList.add('on');
     const lat = Math.round(((ctx.baseLatency || 0) + (ctx.outputLatency || 0)) * 1000);
     runLcd = `RUN · ${(ctx.sampleRate / 1000).toFixed(1)} kHz · ${lat} ms`; lcd(runLcd); drawCurve();
@@ -434,35 +487,53 @@ function segColor(d, lit) {
   return lit ? '#4cff6a' : '#123a1a';
 }
 const TARGET_LO = -20, TARGET_HI = -6;   // where speech peaks should land for Zoom / Webex
-function segY(d) { let k = 0; for (let i = 0; i < SEGS; i++) if (d >= segDb(i)) k = i; return 26 + 220 - (k + 1) * (220 / SEGS) + 1; }
-function drawColumn(x, level, hold, label, target, marker) {
-  const top = 26, h = 220, sh = h / SEGS;
-  g.fillStyle = '#0b0c0d'; g.fillRect(x - 4, top - 4, 30, h + 8);
+const MT = 26, MH = 220, SH = MH / SEGS;
+// Continuous dB -> pixel. y(d) is the exact edge where a segment starts to light for level d, so a marker at
+// THRESHOLD sits precisely where the bars cross it (the old code drew markers half a segment too high).
+function dbToY(d) {
+  d = clamp(d, -60, 0); let k = 0; for (let i = 0; i < SEGS; i++) if (d >= segDb(i)) k = i;
+  const lo = segDb(k), hi = k + 1 < SEGS ? segDb(k + 1) : 0, f = hi > lo ? (d - lo) / (hi - lo) : 0;
+  return MT + MH - k * SH - f * SH;
+}
+function drawMark(x, m) {
+  if (m.band) { const ya = dbToY(m.band[1]), yb = dbToY(m.band[0]); g.fillStyle = m.bandColor || 'rgba(255,176,46,.10)'; g.fillRect(x - 4, ya, 30, yb - ya); }
+  if (m.db === undefined) return;
+  const yy = Math.round(dbToY(m.db)) + .5;
+  g.strokeStyle = m.color; g.lineWidth = m.width || 2; g.setLineDash(m.dash || []); g.beginPath(); g.moveTo(x - 4, yy); g.lineTo(x + 26, yy); g.stroke(); g.setLineDash([]);
+  if (m.arrow !== false) {
+    g.fillStyle = m.color; g.beginPath();
+    if (m.side === 'right') { g.moveTo(x + 26, yy); g.lineTo(x + 31, yy - 4); g.lineTo(x + 31, yy + 4); }
+    else { g.moveTo(x - 4, yy); g.lineTo(x - 9, yy - 4); g.lineTo(x - 9, yy + 4); }
+    g.closePath(); g.fill();
+  }
+  if (m.label) {
+    const ty = m.below ? yy + 10 : yy - 4;
+    g.fillStyle = 'rgba(0,0,0,.78)'; g.fillRect(x - 1, ty - 7, 24, 9);
+    g.fillStyle = m.color; g.font = '800 7px Bahnschrift, "Arial Narrow", sans-serif'; g.textAlign = 'center'; g.fillText(m.label, x + 11, ty);
+  }
+}
+function drawPointer(x, db, color) { // what the gate detector sees right now: a small pointer on the column's right edge
+  const yy = Math.round(dbToY(db)) + .5;
+  g.fillStyle = color; g.beginPath(); g.moveTo(x + 22, yy); g.lineTo(x + 30, yy - 4.5); g.lineTo(x + 30, yy + 4.5); g.closePath(); g.fill();
+  g.strokeStyle = 'rgba(0,0,0,.8)'; g.lineWidth = 1; g.stroke();
+}
+function drawColumn(x, level, hold, label, target, marks, pointerDb, pointerColor) {
+  g.fillStyle = '#0b0c0d'; g.fillRect(x - 4, MT - 4, 30, MH + 8);
   if (target) { // green bracket = the good zone
-    const y1 = segY(TARGET_HI), y2 = segY(TARGET_LO) + sh - 2;
+    const y1 = dbToY(TARGET_HI), y2 = dbToY(TARGET_LO);
     g.fillStyle = 'rgba(76,255,106,.10)'; g.fillRect(x - 4, y1, 30, y2 - y1);
     g.strokeStyle = 'rgba(76,255,106,.55)'; g.lineWidth = 1; g.beginPath();
     g.moveTo(x - 3.5, y1 + .5); g.lineTo(x - 3.5, y2 - .5); g.moveTo(x + 25.5, y1 + .5); g.lineTo(x + 25.5, y2 - .5); g.stroke();
   }
+  if (marks) marks.forEach(m => { if (m.band) drawMark(x, { band: m.band, bandColor: m.bandColor }); });
   for (let k = 0; k < SEGS; k++) {
-    const d = segDb(k), lit = level >= d, y = top + h - (k + 1) * sh + 1;
+    const d = segDb(k), lit = level >= d, y = MT + MH - (k + 1) * SH + 1;
     g.fillStyle = segColor(d, lit);
-    g.fillRect(x, y, 22, sh - 2);
+    g.fillRect(x, y, 22, SH - 2);
   }
-  // peak hold marker
-  if (hold > -60) {
-    let k = 0; for (let i = 0; i < SEGS; i++) if (hold >= segDb(i)) k = i;
-    const y = top + h - (k + 1) * sh + 1; g.fillStyle = '#ffffff'; g.fillRect(x, y, 22, 1.5);
-  }
-  // threshold marker (e.g. the gate): a line across the column with a little tag, so you can see
-  // your voice sitting above it and the room noise sitting below it
-  if (marker) {
-    const yy = Math.round(segY(marker.db) + sh / 2) + .5;
-    g.strokeStyle = marker.color; g.lineWidth = 2; g.setLineDash([3, 2]); g.beginPath(); g.moveTo(x - 4, yy); g.lineTo(x + 26, yy); g.stroke(); g.setLineDash([]);
-    g.fillStyle = marker.color; g.beginPath(); g.moveTo(x - 4, yy); g.lineTo(x - 9, yy - 4); g.lineTo(x - 9, yy + 4); g.closePath(); g.fill();
-    g.fillStyle = 'rgba(0,0,0,.75)'; g.fillRect(x - 1, yy - 12, 24, 9);
-    g.fillStyle = marker.color; g.font = '800 7px Bahnschrift, "Arial Narrow", sans-serif'; g.textAlign = 'center'; g.fillText(marker.label, x + 11, yy - 5);
-  }
+  if (hold > -60) { const y = Math.round(dbToY(hold)); g.fillStyle = '#ffffff'; g.fillRect(x, y - 1, 22, 1.5); }   // peak hold
+  if (marks) marks.forEach(m => { if (m.db !== undefined) drawMark(x, m); });
+  if (pointerDb !== undefined && pointerDb > -70) drawPointer(x, pointerDb, pointerColor || '#ffffff');
   g.fillStyle = '#c9c7bc'; g.font = '700 9px Bahnschrift, "Arial Narrow", sans-serif'; g.textAlign = 'center'; g.fillText(label, x + 11, 16);
 }
 function drawGR(x, gr) {
@@ -479,8 +550,7 @@ function drawScale() {
   g.fillStyle = '#8f8d84'; g.font = '600 7px Bahnschrift, "Arial Narrow", sans-serif'; g.textAlign = 'center';
   const top = 26, h = 220;
   [0, -6, -12, -18, -30, -40, -60].forEach(d => {
-    let k = 0; for (let i = 0; i < SEGS; i++) if (d >= segDb(i)) k = i;
-    const y = top + h - (k + 0.5) * (h / SEGS) + 2.5; g.fillText(d === 0 ? '0' : String(-d), 47, y); g.fillText(d === 0 ? '0' : String(-d), 105, y);
+    const y = Math.round(dbToY(d)) + 2.5; g.fillText(d === 0 ? '0' : String(-d), 47, y); g.fillText(d === 0 ? '0' : String(-d), 105, y);
   });
   g.textAlign = 'left';
   [0, 5, 10, 15, 20].forEach(d => { g.fillText(String(d), 87, top + d * (h / 20) + 5); });
@@ -517,8 +587,20 @@ function loop(t) {
   if (meter.outPk >= 0.99) disp.clipOut = 2; else disp.clipOut -= dt;
   $('#clipIn').classList.toggle('on', disp.clipIn > 0); $('#clipOut').classList.toggle('on', disp.clipOut > 0);
   g.clearRect(0, 0, 151, 270);
-  const gateMark = state.params.gateIn && !state.params.bypass ? { db: state.params.gateThresh, color: meter.gateOpen || !running ? '#ffb02e' : '#ff5a4e', label: 'GATE' } : null;
-  drawColumn(18, disp.in, disp.inHold, 'IN', false, gateMark); drawGR(60, disp.gr); drawColumn(114, disp.out, disp.outHold, 'OUT', true); drawScale();
+  // IN column markers: the gate's OPEN line, its CLOSE line (hysteresis), the compressor threshold, and a white
+  // pointer showing the level the gate detector actually sees right now. Everything is drawn from the same numbers
+  // the audio engine uses, so what you see is what it does.
+  const pp = state.params, inMarks = [];
+  if (pp.gateIn && !pp.bypass) {
+    const T = pp.gateThresh, open = meter.gateOpen && running;
+    inMarks.push({ band: [T - GATE_HYST, T], bandColor: open ? 'rgba(255,176,46,.14)' : 'rgba(255,90,78,.12)' });
+    inMarks.push({ db: T, color: open ? 'rgba(255,176,46,.55)' : '#ff5a4e', label: 'OPEN', width: 2, dash: [3, 2] });
+    inMarks.push({ db: T - GATE_HYST, color: open ? '#ffb02e' : 'rgba(255,176,46,.45)', label: 'CLOSE', width: 1, dash: [2, 2], below: true, arrow: false });
+  }
+  if (pp.compIn && !pp.bypass) inMarks.push({ db: pp.compThresh, color: 'rgba(228,223,208,.85)', label: 'COMP', width: 1, dash: [1, 3], side: 'right' });
+  const gateOnNow = running && pp.gateIn && !pp.bypass;
+  drawColumn(18, disp.in, disp.inHold, 'IN', false, inMarks, gateOnNow ? meter.gateLvl : undefined, meter.gateOpen ? '#ffffff' : '#ff8a80');
+  drawGR(60, disp.gr); drawColumn(114, disp.out, disp.outHold, 'OUT', true); drawScale();
   $('#grReadout').textContent = disp.gr.toFixed(1);
   const gateOn = running && state.params.gateIn && !state.params.bypass;
   $('#ledGateOpen').classList.toggle('on', gateOn && meter.gateOpen);
@@ -733,6 +815,22 @@ async function boot() {
     $('#btnBoot').classList.toggle('on', on); flashLcd(on ? 'STARTS WITH WINDOWS · LIVES IN THE TRAY' : 'AUTO START OFF', 2500);
   };
   $('#btnMin').onclick = () => window.cs.minimize(); $('#btnClose').onclick = () => window.cs.close();
+  setupLamps();
+  // REC: 10 s of what goes INTO the strip (left) and what the cable GETS (right), as a WAV Claude can listen to
+  $('#btnRec').onclick = () => {
+    if (!running || !node || $('#btnRec').classList.contains('on')) return;
+    $('#btnRec').classList.add('on'); node.port.postMessage({ type: 'rec', seconds: 10 });
+    let left = 10; lcd(`RECORDING ${left} s · TALK NORMALLY`); log('REC start');
+    clearInterval(recTimer); recTimer = setInterval(() => { left--; if (left > 0) lcd(`RECORDING ${left} s · TALK NORMALLY`, false, true); else clearInterval(recTimer); }, 1000);
+  };
+  // Health ticker: audio clock vs wall clock once a second; counts on the LCD while running
+  setInterval(() => {
+    if (!ctx || !running) { health.wall = 0; return; }
+    const now = performance.now(), ct = ctx.currentTime;
+    if (health.wall) { const off = (ct - health.ct) - (now - health.wall) / 1000; if (Math.abs(off) > 0.03) { health.hiccups++; log(`AUDIO CLOCK SLIP ${Math.round(off * 1000)} ms (total ${health.hiccups})`); } }
+    health.wall = now; health.ct = ct;
+    if (!learning && !leveling && $('#lcd').textContent.startsWith('RUN')) lcd(runLcd + healthText(), false, true);
+  }, 1000);
   // SEND LOG: ask for the OnFleek PIN once, then post the log file to windows.onfleek.live
   const sendLog = async (pin) => {
     lcd('SENDING LOG\u2026');

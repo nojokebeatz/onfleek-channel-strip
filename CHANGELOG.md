@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.5.0 — 2026-09-12 — honest meters, static hunt, bigger lamps
+- GATE marker is now exact. The old line sat half a step too high on the IN meter. The IN meter now shows
+  an OPEN line (threshold), a CLOSE line 4 dB under it (the gate closes there, so words do not stutter),
+  and a white pointer = the level the gate is actually listening to. The gate listens AFTER the HI PASS /
+  LO PASS filters, so rumble that lifts the IN bars does not open it; the pointer shows that truth.
+- COMP tick on the IN meter shows the compressor threshold. Scale numbers and peak-hold lines use the
+  same exact dB-to-pixel map as the bars.
+- Static hunt: gate gain is floored to exactly 0 when closed and the signal is re-seeded after the gate,
+  so long silences cannot push the filters into slow "denormal" math (a known source of crackle). Any NaN
+  is caught and zeroed. The app now counts audio-thread STALLS, clock SLIPS and hard CLIPS; they show on
+  the LCD next to RUN and go to the log.
+- REC button (OUTPUT header): records 10 s. Left = what goes into the strip, right = what the cable gets.
+  Saved next to the log; SEND LOG uploads the newest one so Claude can listen to the static.
+- All on/off buttons have a bigger lamp bar (twice as tall, brighter glow), status LEDs are larger, and
+  GSAP animates presses and lamp changes.
+- DSP tests: 26 checks, ALL PASS.
+
 ## 2.4.0 — 2026-09-12 — crackle hunt
 - RATE row in SETUP: reads the sample rate of both cable sides. When they differ (a common VB-CABLE
   setup that makes random "8-bit" crackle) or are not 48000 Hz, FIX RATE sets both to 48000 Hz 16-bit.

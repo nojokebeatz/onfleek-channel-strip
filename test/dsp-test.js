@@ -58,5 +58,12 @@ console.log(`${mu < -80 ? 'PASS' : 'FAIL'}  mute silences: ${mu.toFixed(1)} dB (
 check('de-esser pulls a 7 kHz hiss down ~12 dB', run({ deIn: 1, deFreq: 7000, deAmt: 80 }, 7000, -6), -18, 1.5);
 check('de-esser leaves 1 kHz voice alone', run({ deIn: 1, deFreq: 7000, deAmt: 80 }, 1000, -6), -6, 0.5);
 check('de-esser at AMOUNT 0 ignores quiet hiss', run({ deIn: 1, deFreq: 7000, deAmt: 0 }, 7000, -20), -20, 0.3);
+{ // long silence must not leave the gate gain in denormal land, and the output must stay finite
+  const p = new Proc(); p.port.onmessage({ data: { type: 'params', p: Object.assign({}, FLAT, { gateIn: 1, gateExp: 0, gateThresh: -45, gateRange: 80, eqIn: 1, compIn: 1, deIn: 1, limIn: 1 }) } });
+  const z = new Float32Array(128), oL = new Float32Array(128), oR = new Float32Array(128); let bad = false;
+  for (let i = 0; i < Math.round(3 * SR / 128); i++) { p.process([[z]], [[oL, oR]]); for (let k = 0; k < 128; k++) if (!Number.isFinite(oL[k])) bad = true; }
+  const ok = !bad && p.gateGain === 0;
+  console.log(`${ok ? 'PASS' : 'FAIL'}  3 s of silence: gate gain floors to exactly 0 (got ${p.gateGain}) and output stays finite`); if (!ok) fails++;
+}
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASS');
 process.exit(fails ? 1 : 0);

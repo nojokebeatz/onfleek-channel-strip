@@ -227,6 +227,14 @@ const runPS = (cmd) => new Promise((resolve, reject) => {
 const CABLE_URL = 'https://download.vb-audio.com/Download_CABLE/VBCABLE_Driver_Pack45.zip';
 ipcMain.handle('log:write', (e, msg) => logLine('ui', msg));
 ipcMain.handle('log:path', () => logPath());
+// REC: the renderer hands over a finished WAV; keep the last three in userData.
+ipcMain.handle('rec:save', (e, buf) => {
+  const dir = app.getPath('userData'), name = 'capture-' + new Date().toISOString().replace(/[:.]/g, '-') + '.wav';
+  fs.writeFileSync(path.join(dir, name), Buffer.from(buf instanceof ArrayBuffer ? new Uint8Array(buf) : buf));
+  try { fs.readdirSync(dir).filter(f => /^capture-.*\.wav$/.test(f)).sort().reverse().slice(3).forEach(f => fs.unlinkSync(path.join(dir, f))); } catch {}
+  logLine('main', 'capture saved ' + name);
+  return name;
+});
 // SEND LOG: post the log to windows.onfleek.live's upload door (same PIN the chat page uses) so the
 // file lands on the server where Claude can read it. Nothing else leaves the PC.
 ipcMain.handle('log:send', async (e, pin) => {
@@ -238,7 +246,19 @@ ipcMain.handle('log:send', async (e, pin) => {
   const j = await res.json().catch(() => ({}));
   if (!res.ok) { logLine('main', 'log send failed ' + res.status + ' ' + (j.error || '')); throw new Error(j.error || ('HTTP ' + res.status)); }
   logLine('main', 'log sent as ' + j.name);
-  return j.name;
+  // also send the newest recording, if there is a fresh one (last 2 h)
+  let extra = '';
+  try {
+    const dir = app.getPath('userData');
+    const caps = fs.readdirSync(dir).filter(f => /^capture-.*\.wav$/.test(f)).map(f => ({ f, t: fs.statSync(path.join(dir, f)).mtimeMs })).sort((a, b) => b.t - a.t);
+    if (caps.length && Date.now() - caps[0].t < 2 * 3600 * 1000) {
+      const r2 = await fetch('https://windows.onfleek.live/api/upload-image?name=channel-strip-capture&ext=wav', {
+        method: 'POST', headers: { 'X-Window-Pin': String(pin || ''), 'Content-Type': 'application/octet-stream' }, body: fs.readFileSync(path.join(dir, caps[0].f)) });
+      const j2 = await r2.json().catch(() => ({}));
+      if (r2.ok) { extra = ' + ' + j2.name; logLine('main', 'capture sent as ' + j2.name); } else logLine('main', 'capture send failed ' + r2.status);
+    }
+  } catch (e2) { logLine('main', 'capture send failed ' + (e2.message || e2)); }
+  return j.name + extra;
 });
 ipcMain.handle('cable:install', async () => {
   const progress = (s) => win && win.webContents.send('cable:progress', s);

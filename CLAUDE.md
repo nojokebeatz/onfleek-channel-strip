@@ -97,6 +97,22 @@ w/scale x h/scale so it always fills the viewport. Column min-widths must sum to
 - RATE row: cable feed vs mic side must match (48000 preferred). FIX RATE sets both, then restarts the engine.
 - Main engine latencyHint 'playback'; monitor engine 'interactive'. Meters no longer use shadowBlur.
 
+## Honest meters + static hunt (2.5.0)
+- `dbToY(d)` in app.js is THE dB-to-pixel map for the IN/OUT columns (segment bottom edge = the level
+  where it lights). Markers, peak-hold and scale labels all use it. Old `segY` put markers half a segment high.
+- Gate hysteresis = `HYST` in the worklet and `GATE_HYST` in app.js (4 dB) - keep them equal. IN column
+  shows OPEN (threshold), CLOSE (threshold - HYST), COMP tick, and a white pointer = `meter.gateLvl`, the
+  detector level the gate really compares. The detector sits AFTER the HP/LP filters, so IN bars and the
+  pointer can legitimately differ (rumble).
+- Health: worklet reports `clips` (limiter hard clamps), `nans`, and `t` (Date.now per block); app.js
+  counts STALLS (>200 ms between reports), CLOCK SLIPS (ctx.currentTime vs performance.now > 30 ms/s)
+  and CLIPS, shows them after RUN on the LCD and logs each one.
+- REC (OUTPUT header): worklet `rec` message -> 10 s Float32 capture (L = post-trim input, R = final
+  output) -> `wavStereo16` -> IPC `rec:save` -> `%APPDATA%\OnFleek Channel Strip\capture-<iso>.wav`
+  (keeps 3). SEND LOG also uploads the newest capture (< 2 h old) as `channel-strip-capture-*.wav`.
+- Lamps: `setupLamps()` prepends `<i class="lamp">` to every `.tog`; GSAP (`vendor/gsap.min.js`, CSP-safe
+  local copy) animates lamp/LED/press via a MutationObserver on `class`. Use `gsap.fromTo`, never `from`.
+
 ## Traps
 - Chromium hides device names until the mic permission is granted once — `unlockLabels()` does that.
 - `AudioContext.setSinkId('')` = default output; `'default'` id must be mapped to `''`.

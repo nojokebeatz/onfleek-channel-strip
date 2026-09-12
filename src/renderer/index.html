@@ -65,7 +65,7 @@
 
       <section class="sec sec-out">
         <div class="sec-head"><span class="sec-title">OUTPUT</span>
-          <div class="sec-btns"><span class="ledlabel"><i class="led amber" id="ledLim"></i></span><button class="tog" data-tog="limIn" data-lamp="#ffb02e" title="Safety limiter: nothing louder than -1 dB gets out">LIM</button></div>
+          <div class="sec-btns"><button class="tog" id="btnRec" data-lamp="#ff3b30" title="Record 10 seconds of what the cable gets, so Claude can hear the static">REC</button><span class="ledlabel"><i class="led amber" id="ledLim"></i></span><button class="tog" data-tog="limIn" data-lamp="#ffb02e" title="Safety limiter: nothing louder than -1 dB gets out">LIM</button></div>
         </div>
         <div class="patchrow presetrow">
           <label class="patch"><span>PRESET</span><select id="selPreset"></select></label>
@@ -202,6 +202,7 @@
   </div>
 </div>
 </div>
+<script src="vendor/gsap.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

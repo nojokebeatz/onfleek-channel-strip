@@ -3,6 +3,7 @@
 const DB = (g) => 20 * Math.log10(g);
 const LIN = (db) => Math.pow(10, db / 20);
 const TC = (ms, sr) => 1 - Math.exp(-1 / (Math.max(0.01, ms) * 0.001 * sr));
+const HYST = 4;   // gate opens at THRESHOLD, closes HYST dB below it (the panel draws both lines)
 
 class Biquad {
   constructor() { this.b0 = 1; this.b1 = 0; this.b2 = 0; this.a1 = 0; this.a2 = 0; this.z1 = 0; this.z2 = 0; }
@@ -65,8 +66,11 @@ class StripProcessor extends AudioWorkletProcessor {
     this.deBp = new Biquad(); this.deEnv = 0; this.deGr = 0; this.deRedMax = 0;
     this.dn = 1e-18;
     this.pkIn = 0; this.pkOut = 0; this.grMax = 0; this.gateRedMax = 0; this.count = 0;
+    this.gateLvlMax = -120; this.clipCount = 0; this.nanCount = 0;
+    this.recIn = null; this.recOut = null; this.recPos = 0;
     this.port.onmessage = (e) => {
       if (e.data.type === 'params') { Object.assign(this.p, e.data.p); this.update(); }
+      else if (e.data.type === 'rec') { const n = Math.round(Math.min(30, e.data.seconds || 10) * sampleRate); this.recIn = new Float32Array(n); this.recOut = new Float32Array(n); this.recPos = 0; }
     };
     this.update();
   }
@@ -105,21 +109,23 @@ class StripProcessor extends AudioWorkletProcessor {
       this.dn = -this.dn; x += this.dn;
       const raw = x;
       this.trimG += (this.trimT - this.trimG) * sm; x *= this.trimG;
+      const xin = x;
       const ax = Math.abs(x); if (ax > this.pkIn) this.pkIn = ax;
       if (!p.bypass) {
         if (p.filtersIn) { x = this.hp2.process(this.hp1.process(x)); x = this.lp.process(x); }
         if (p.gateIn) {
           const a = Math.abs(x);
           this.gateEnv += (a > this.gateEnv ? this.gEnvAtk : this.gEnvRel) * (a - this.gateEnv);
-          const lvl = DB(this.gateEnv + 1e-9);
-          const thr = this.gateOpen ? p.gateThresh - 6 : p.gateThresh; // 6 dB hysteresis: no chatter around the line
+          const lvl = DB(this.gateEnv + 1e-9); if (lvl > this.gateLvlMax) this.gateLvlMax = lvl;
+          const thr = this.gateOpen ? p.gateThresh - HYST : p.gateThresh; // hysteresis: opens at T, closes at T - HYST
           let red = 0;
           if (lvl >= thr) { this.gateOpen = true; this.holdCount = this.holdSamples; }
           else if (this.holdCount > 0) { this.holdCount--; }
           else { this.gateOpen = false; red = Math.min(p.gateRange, (thr - lvl) * (this.gateRatio - 1)); }
           const target = red >= 79 ? 0 : LIN(-red);   // RANGE at FULL = dead silent
           this.gateGain += (target > this.gateGain ? this.gAtk : this.gRel) * (target - this.gateGain);
-          x *= this.gateGain;
+          if (target === 0 && this.gateGain < 1e-6) this.gateGain = 0;   // floor: never let the gain crawl into denormal land
+          x *= this.gateGain; x += this.dn;                                // keep the filters after the gate out of denormals too
           const gr = -DB(this.gateGain + 1e-9); if (gr > this.gateRedMax) this.gateRedMax = gr;
         } else { this.gateGain = 1; this.gateOpen = true; }
         if (p.compIn) {
@@ -154,18 +160,24 @@ class StripProcessor extends AudioWorkletProcessor {
           const buf = this.dl, rd = (this.dlPos - this.limN) & 255;
           const delayed = buf[rd]; buf[this.dlPos] = x; this.dlPos = (this.dlPos + 1) & 255;
           x = delayed * this.limG;
-          if (x > this.limCeil) x = this.limCeil; else if (x < -this.limCeil) x = -this.limCeil;
+          if (x > this.limCeil) { x = this.limCeil; this.clipCount++; } else if (x < -this.limCeil) { x = -this.limCeil; this.clipCount++; }
           const lr = -DB(this.limG + 1e-9); if (lr > this.limRedMax) this.limRedMax = lr;
         } else { this.limG = 1; }
       } else { x = raw; }
       this.muteG += (this.muteT - this.muteG) * sm; x *= this.muteG;
+      if (x !== x) { x = 0; this.nanCount++; }
+      if (this.recIn) {
+        if (this.recPos < this.recIn.length) { this.recIn[this.recPos] = xin; this.recOut[this.recPos] = x; this.recPos++; }
+        else { const a = this.recIn, b = this.recOut; this.recIn = this.recOut = null; this.port.postMessage({ type: 'recDone', inBuf: a, outBuf: b, sr: sampleRate }, [a.buffer, b.buffer]); }
+      }
       const ao = Math.abs(x); if (ao > this.pkOut) this.pkOut = ao;
       for (let c = 0; c < out.length; c++) out[c][i] = x;
     }
     this.count += n;
     if (this.count >= 1024) {
-      this.port.postMessage({ type: 'meter', inPk: this.pkIn, outPk: this.pkOut, gr: this.grMax, gateRed: this.gateRedMax, gateOpen: this.gateOpen, lim: this.limRedMax, de: this.deRedMax });
-      this.count = 0; this.pkIn = this.pkOut = this.grMax = this.gateRedMax = this.limRedMax = this.deRedMax = 0;
+      this.port.postMessage({ type: 'meter', inPk: this.pkIn, outPk: this.pkOut, gr: this.grMax, gateRed: this.gateRedMax, gateOpen: this.gateOpen, lim: this.limRedMax, de: this.deRedMax,
+        gateLvl: this.gateLvlMax, clips: this.clipCount, nans: this.nanCount, t: Date.now(), frames: this.count });
+      this.count = 0; this.pkIn = this.pkOut = this.grMax = this.gateRedMax = this.limRedMax = this.deRedMax = 0; this.gateLvlMax = -120; this.clipCount = 0; this.nanCount = 0;
     }
     return true;
   }
