@@ -168,6 +168,14 @@ app.on('before-quit', (e) => {
   restoredOnQuit = true; e.preventDefault();
   runPSOut(['-File', defaultsScript(), 'set', defaultMemo.prev]).catch(() => {}).finally(() => app.quit());
 });
+ipcMain.handle('audio:formats', async () => {
+  try { const out = await runPSOut(['-File', defaultsScript(), 'formats']); return JSON.parse(out.trim().split(/\r?\n/).pop()); }
+  catch (e) { return { error: String(e.message || e).slice(0, 120) }; }
+});
+ipcMain.handle('audio:setFormat', async (e, name, adapter, flow, rate) => {
+  try { return await runPSOut(['-File', defaultsScript(), 'setformat', String(name), String(adapter || ''), String(flow || 'Capture'), String(rate || 48000)]); }
+  catch (e) { return 'FAILED ' + String(e.message || e).slice(0, 120); }
+});
 ipcMain.handle('audio:setDefault', async (e, name, adapter) => {
   try { return await runPSOut(['-File', defaultsScript(), 'set', String(name), String(adapter || '')]); }
   catch (e) { return 'FAILED ' + String(e.message || e).slice(0, 120); }

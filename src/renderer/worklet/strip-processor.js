@@ -112,7 +112,7 @@ class StripProcessor extends AudioWorkletProcessor {
           const a = Math.abs(x);
           this.gateEnv += (a > this.gateEnv ? this.gEnvAtk : this.gEnvRel) * (a - this.gateEnv);
           const lvl = DB(this.gateEnv + 1e-9);
-          const thr = this.gateOpen ? p.gateThresh - 4 : p.gateThresh; // 4 dB hysteresis
+          const thr = this.gateOpen ? p.gateThresh - 6 : p.gateThresh; // 6 dB hysteresis: no chatter around the line
           let red = 0;
           if (lvl >= thr) { this.gateOpen = true; this.holdCount = this.holdSamples; }
           else if (this.holdCount > 0) { this.holdCount--; }

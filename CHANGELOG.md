@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.4.0 — 2026-09-12 — crackle hunt
+- RATE row in SETUP: reads the sample rate of both cable sides. When they differ (a common VB-CABLE
+  setup that makes random "8-bit" crackle) or are not 48000 Hz, FIX RATE sets both to 48000 Hz 16-bit.
+- Cable engine now uses a roomier output buffer (fewer dropouts when the PC is busy). Headphone monitor
+  stays snappy.
+- Meter drawing is cheaper (no per-segment glow), so a weak PC has more room for the audio.
+- Gate hysteresis widened to 6 dB so words do not stutter at the threshold.
+- Device rates are written to the log at every start (SEND LOG shows them).
+
 ## 2.3.2 — 2026-09-12
 - Save your own presets: SAVE button next to PRESET asks for a name and keeps the settings under
   "MY PRESETS" in the list. Same name = replace. DEL removes the selected one.

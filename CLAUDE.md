@@ -89,6 +89,14 @@ w/scale x h/scale so it always fills the viewport. Column min-widths must sum to
   `docker exec onfleek-windows sh -c 'ls -t /state/uploads | grep channel-strip-log | head -1'` then
   `docker exec onfleek-windows cat /state/uploads/<name>`.
 
+## Crackle / "8-bit sound" hunt (2.4.0)
+- `audio-default.ps1 formats` lists every ACTIVE endpoint's stored format (registry value
+  `{f19f064d-082c-4e27-bc73-6882a1bb8e4c},0`, a PROPVARIANT blob; `ParseFmt` scans for the WAVEFORMATEX
+  pattern so the header layout does not matter). `setformat <name> <adapter> <Render|Capture> <rate>` calls
+  IPolicyConfig::SetDeviceFormat with a PCM 16-bit stereo WAVEFORMATEXTENSIBLE.
+- RATE row: cable feed vs mic side must match (48000 preferred). FIX RATE sets both, then restarts the engine.
+- Main engine latencyHint 'playback'; monitor engine 'interactive'. Meters no longer use shadowBlur.
+
 ## Traps
 - Chromium hides device names until the mic permission is granted once — `unlockLabels()` does that.
 - `AudioContext.setSinkId('')` = default output; `'default'` id must be mapped to `''`.

@@ -61,7 +61,7 @@ const PRESETS = {
 const state = { params: DEFAULT_PARAMS(), inputId: '', outputId: '', phonesId: '', mon: 0, nr: 0, wantDefault: 0, prevDefaultMic: '', logPin: '', rangeMigrated: 0, userPresets: {}, preset: 'Voice – Natural' };
 let ctx = null, node = null, stream = null, running = false, version = '0.0.0';
 let monCtx = null, monNode = null, monStream = null, monGain = null, lastOuts = [], setupTimer = 0, defaults = null, prevDefault = '';
-let learning = false, runLcd = 'STANDBY', reconnectTimer = 0, lastIns = [];
+let learning = false, runLcd = 'STANDBY', reconnectTimer = 0, lastIns = [], formats = null;
 const meter = { inPk: 0, outPk: 0, gr: 0, gateRed: 0, gateOpen: false, lim: 0, de: 0 };
 let leveling = false;
 
@@ -275,10 +275,34 @@ function renderSetup() {
     }
   }
   $('#btnDefault').disabled = !cab;
+  // 4. RATE: both sides of the cable must run at the same sample rate, or the cable crackles ("8-bit" blips)
+  renderFormatRow(cab);
   // TO ZOOM lamp + name in the OUTPUT section
   $('#ledZoom').classList.toggle('on', !!cab && running && !state.params.mute);
   $('#zoomText').textContent = cab ? (renamed ? MIC_NAME : from) : 'NO CABLE \u00b7 SEE SETUP';
 }
+const CABLE_RATE = 48000;
+function cableFormats(cab) {
+  if (!cab || !Array.isArray(formats)) return null;
+  const fam = family(cab.label);
+  const side = (flow) => formats.find(f => f.flow === flow && family('(' + (f.adapter || '') + ')') === fam);
+  return { feed: side('Render'), mic: side('Capture') };
+}
+function renderFormatRow(cab) {
+  const el = $('#ckFormat'); if (!el) return;
+  if (!cab) { setCheck('ckFormat', false, 'Waiting for the cable (top row).'); $('#btnFormat').disabled = true; return; }
+  if (!Array.isArray(formats)) { setCheck('ckFormat', false, formats && formats.error ? 'Could not read the cable\u2019s rates.' : 'Checking rates\u2026'); $('#btnFormat').disabled = true; return; }
+  const cf = cableFormats(cab);
+  const feed = cf.feed && cf.feed.rate ? cf.feed : null, mic = cf.mic && cf.mic.rate ? cf.mic : null;
+  const appRate = ctx ? ctx.sampleRate : 0;
+  $('#btnFormat').disabled = false;
+  if (!feed || !mic) { setCheck('ckFormat', false, `Windows has not written a rate for the cable yet (feed ${feed ? feed.rate : '?'} / mic ${mic ? mic.rate : '?'}). Press FIX RATE to set both to ${CABLE_RATE} Hz.`); return; }
+  const same = feed.rate === mic.rate && feed.bits === mic.bits;
+  if (same && feed.rate === CABLE_RATE) { setCheck('ckFormat', true, `Cable runs at ${feed.rate} Hz, ${feed.bits}-bit on both sides. App engine: ${appRate || '?'} Hz.`); return; }
+  if (same) { setCheck('ckFormat', false, `Cable runs at ${feed.rate} Hz on both sides. ${CABLE_RATE} Hz is the safest for Meet / Zoom. Press FIX RATE.`); return; }
+  setCheck('ckFormat', false, `The two cable sides do not match (feed ${feed.rate} Hz ${feed.bits}-bit, mic ${mic.rate} Hz ${mic.bits}-bit). That makes crackle. Press FIX RATE to set both to ${CABLE_RATE} Hz.`);
+}
+async function refreshFormats() { formats = await window.cs.audioFormats(); log('formats: ' + JSON.stringify(formats)); renderSetup(); }
 async function refreshDefaults() { defaults = await window.cs.audioDefaults(); log('windows default mic: ' + JSON.stringify(defaults)); renderSetup(); }
 async function refreshDevices() {
   const devs = await navigator.mediaDevices.enumerateDevices();
@@ -351,7 +375,7 @@ async function start() {
   if (running) return;
   try {
     lcd('STARTING…');
-    ctx = new AudioContext({ latencyHint: 'interactive' });
+    ctx = new AudioContext({ latencyHint: 'playback' });   // roomier buffer to the cable = fewer dropouts
     await ctx.audioWorklet.addModule('worklet/strip-processor.js');
     const constraints = micConstraints();
     try { stream = await navigator.mediaDevices.getUserMedia(constraints); }
@@ -423,10 +447,8 @@ function drawColumn(x, level, hold, label, target, marker) {
   for (let k = 0; k < SEGS; k++) {
     const d = segDb(k), lit = level >= d, y = top + h - (k + 1) * sh + 1;
     g.fillStyle = segColor(d, lit);
-    if (lit) { g.shadowColor = g.fillStyle; g.shadowBlur = 5; } else g.shadowBlur = 0;
     g.fillRect(x, y, 22, sh - 2);
   }
-  g.shadowBlur = 0;
   // peak hold marker
   if (hold > -60) {
     let k = 0; for (let i = 0; i < SEGS; i++) if (hold >= segDb(i)) k = i;
@@ -449,10 +471,8 @@ function drawGR(x, gr) {
   for (let k = 0; k < N; k++) {
     const lit = gr >= k + 0.5, y = top + k * sh + 1;
     g.fillStyle = lit ? '#ffb02e' : '#3a2a10';
-    if (lit) { g.shadowColor = '#ffb02e'; g.shadowBlur = 5; } else g.shadowBlur = 0;
     g.fillRect(x, y, 22, sh - 2);
   }
-  g.shadowBlur = 0;
   g.fillStyle = '#c9c7bc'; g.font = '700 9px Bahnschrift, "Arial Narrow", sans-serif'; g.textAlign = 'center'; g.fillText('GR', x + 11, 16);
 }
 function drawScale() {
@@ -759,13 +779,26 @@ async function boot() {
     }
     else lcd(/NOTFOUND/.test(r) ? `WINDOWS CANNOT SEE \u201c${want}\u201d YET \u00b7 RESTART THE PC` : 'COULD NOT SET DEFAULT: ' + String(r).slice(0, 50), true);
   };
-  navigator.mediaDevices.addEventListener('devicechange', () => { refreshDevices(); clearTimeout(setupTimer); setupTimer = setTimeout(refreshDefaults, 1500); });
+  navigator.mediaDevices.addEventListener('devicechange', () => { refreshDevices(); clearTimeout(setupTimer); setupTimer = setTimeout(() => { refreshDefaults(); refreshFormats(); }, 1500); });
   window.addEventListener('resize', fit); fit();
   requestAnimationFrame(loop);
   await unlockLabels(); await refreshDevices();
   await start();
   if (rangeNote) { save(); flashLcd(rangeNote, 6000); log(rangeNote); }
   await refreshDefaults();
+  refreshFormats();
+  $('#btnFormat').onclick = async () => {
+    const cab = cableOut(); if (!cab) return;
+    const key = familyKey(cab.label), feedName = (cab.label || '').replace(/\s*\(.*$/, '');
+    const micName = micSideRenamed() ? MIC_NAME : otherAppsMic(cab.label);
+    $('#ckFormat').classList.add('busy'); lcd(`SETTING BOTH CABLE SIDES TO ${CABLE_RATE} Hz\u2026`);
+    const r1 = await window.cs.audioSetFormat(feedName, key, 'Render', CABLE_RATE); log('setformat feed: ' + r1);
+    const r2 = await window.cs.audioSetFormat(micName, key, 'Capture', CABLE_RATE); log('setformat mic: ' + r2);
+    const ok1 = /^SETFORMAT/.test(r1), ok2 = /^SETFORMAT/.test(r2);
+    await refreshFormats();
+    if (ok1 && ok2) { flashLcd(`CABLE SET TO ${CABLE_RATE} Hz ON BOTH SIDES \u00b7 RESTARTING ENGINE`, 4000); await restart(); }
+    else lcd(`COULD NOT SET RATE (${ok1 ? 'feed ok' : 'feed: ' + String(r1).slice(0, 30)} / ${ok2 ? 'mic ok' : 'mic: ' + String(r2).slice(0, 30)}) \u00b7 SET IT IN WINDOWS SOUND SETTINGS`, true);
+  };
   // Take over again if you asked for that before (the app hands the old mic back on quit).
   if (state.wantDefault && cableOut() && defaults && !defaults.error) {
     const want = micSideRenamed() ? MIC_NAME : otherAppsMic(cableOut().label);

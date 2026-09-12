@@ -17,6 +17,8 @@ contextBridge.exposeInMainWorld('cs', {
   renameMic: (from, to, flow, adapter) => ipcRenderer.invoke('mic:rename', from, to, flow, adapter),
   audioDefaults: () => ipcRenderer.invoke('audio:defaults'),
   audioSetDefault: (name, adapter) => ipcRenderer.invoke('audio:setDefault', name, adapter),
+  audioFormats: () => ipcRenderer.invoke('audio:formats'),
+  audioSetFormat: (name, adapter, flow, rate) => ipcRenderer.invoke('audio:setFormat', name, adapter, flow, rate),
   rememberDefault: (prev, want) => ipcRenderer.invoke('audio:remember', prev, want),
   getAutostart: () => ipcRenderer.invoke('autostart:get'),
   setAutostart: (on) => ipcRenderer.invoke('autostart:set', on),
