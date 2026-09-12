@@ -378,7 +378,7 @@ function segColor(d, lit) {
 }
 const TARGET_LO = -20, TARGET_HI = -6;   // where speech peaks should land for Zoom / Webex
 function segY(d) { let k = 0; for (let i = 0; i < SEGS; i++) if (d >= segDb(i)) k = i; return 26 + 220 - (k + 1) * (220 / SEGS) + 1; }
-function drawColumn(x, level, hold, label, target) {
+function drawColumn(x, level, hold, label, target, marker) {
   const top = 26, h = 220, sh = h / SEGS;
   g.fillStyle = '#0b0c0d'; g.fillRect(x - 4, top - 4, 30, h + 8);
   if (target) { // green bracket = the good zone
@@ -398,6 +398,15 @@ function drawColumn(x, level, hold, label, target) {
   if (hold > -60) {
     let k = 0; for (let i = 0; i < SEGS; i++) if (hold >= segDb(i)) k = i;
     const y = top + h - (k + 1) * sh + 1; g.fillStyle = '#ffffff'; g.fillRect(x, y, 22, 1.5);
+  }
+  // threshold marker (e.g. the gate): a line across the column with a little tag, so you can see
+  // your voice sitting above it and the room noise sitting below it
+  if (marker) {
+    const yy = Math.round(segY(marker.db) + sh / 2) + .5;
+    g.strokeStyle = marker.color; g.lineWidth = 2; g.setLineDash([3, 2]); g.beginPath(); g.moveTo(x - 4, yy); g.lineTo(x + 26, yy); g.stroke(); g.setLineDash([]);
+    g.fillStyle = marker.color; g.beginPath(); g.moveTo(x - 4, yy); g.lineTo(x - 9, yy - 4); g.lineTo(x - 9, yy + 4); g.closePath(); g.fill();
+    g.fillStyle = 'rgba(0,0,0,.75)'; g.fillRect(x - 1, yy - 12, 24, 9);
+    g.fillStyle = marker.color; g.font = '800 7px Bahnschrift, "Arial Narrow", sans-serif'; g.textAlign = 'center'; g.fillText(marker.label, x + 11, yy - 5);
   }
   g.fillStyle = '#c9c7bc'; g.font = '700 9px Bahnschrift, "Arial Narrow", sans-serif'; g.textAlign = 'center'; g.fillText(label, x + 11, 16);
 }
@@ -455,7 +464,8 @@ function loop(t) {
   if (meter.outPk >= 0.99) disp.clipOut = 2; else disp.clipOut -= dt;
   $('#clipIn').classList.toggle('on', disp.clipIn > 0); $('#clipOut').classList.toggle('on', disp.clipOut > 0);
   g.clearRect(0, 0, 151, 270);
-  drawColumn(18, disp.in, disp.inHold, 'IN'); drawGR(60, disp.gr); drawColumn(114, disp.out, disp.outHold, 'OUT', true); drawScale();
+  const gateMark = state.params.gateIn && !state.params.bypass ? { db: state.params.gateThresh, color: meter.gateOpen || !running ? '#ffb02e' : '#ff5a4e', label: 'GATE' } : null;
+  drawColumn(18, disp.in, disp.inHold, 'IN', false, gateMark); drawGR(60, disp.gr); drawColumn(114, disp.out, disp.outHold, 'OUT', true); drawScale();
   $('#grReadout').textContent = disp.gr.toFixed(1);
   const gateOn = running && state.params.gateIn && !state.params.bypass;
   $('#ledGateOpen').classList.toggle('on', gateOn && meter.gateOpen);

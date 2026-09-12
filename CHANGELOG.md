@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.2.5 — 2026-09-12
+- GATE marker on the IN meter: a dashed line with an arrow at the gate threshold. Amber while the gate
+  is open, red while it is closed. Moves with the THRESHOLD knob and LEARN.
+
 ## 2.2.4 — 2026-09-12
 - Log file: every LCD message, device list, button result, PowerShell result, updater event and error
   goes to %APPDATA%\OnFleek Channel Strip\strip.log (rotates at 1 MB). Tray menu: "Show log file".
