@@ -218,7 +218,7 @@ function renderFader() {
 }
 
 /* ---------- render all / change plumbing ---------- */
-function renderAll() { for (const id in knobEls) renderKnob(id); for (const id in togEls) renderToggle(id); renderFader(); $('#selPreset').value = presetValid(state.preset) ? state.preset : ''; $('#btnDelPreset').hidden = !isUserPreset(state.preset); drawCurve(); }
+function renderAll() { fillPresetList(); for (const id in knobEls) renderKnob(id); for (const id in togEls) renderToggle(id); renderFader(); $('#selPreset').value = presetValid(state.preset) ? state.preset : ''; $('#btnDelPreset').hidden = !isUserPreset(state.preset); drawCurve(); }
 let sendPending = false, saveTimer = 0;
 /* ---------- undo / redo (Ctrl+Z / Ctrl+Y): every settings change is a snapshot ---------- */
 const hist = { past: [], future: [], last: '', t: 0 };
@@ -284,7 +284,7 @@ function buildPresets() {
   nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') savePreset(); if (e.key === 'Escape') nameBox.hidden = true; });
   $('#btnDelPreset').onclick = () => {
     if (!isUserPreset(state.preset)) return;
-    const name = state.preset.slice(2); delete state.userPresets[name]; state.preset = ''; fillPresetList(); save();
+    const name = state.preset.slice(2); delete state.userPresets[name]; state.preset = ''; fillPresetList(); window.cs.saveState(Object.assign({}, state, { presetDelete: 1 })).catch(() => {});
     flashLcd(`PRESET \u201c${name.toUpperCase()}\u201d DELETED`, 3000); log('preset deleted: ' + name);
   };
 }
@@ -829,6 +829,7 @@ async function boot() {
   version = await window.cs.version(); $('#verLabel').textContent = 'v' + version;
   $$('[data-knob]').forEach(buildKnob); $$('[data-tog]').forEach(buildToggle); buildFader(); buildPresets();
   const saved = await window.cs.loadState();
+  if (saved && !saved.params && saved.userPresets) state.userPresets = saved.userPresets;
   if (saved && saved.params) { state.params = Object.assign(DEFAULT_PARAMS(), saved.params); state.inputId = saved.inputId || ''; state.phonesId = saved.phonesId || ''; state.mon = saved.mon ? 1 : 0; state.nr = saved.nr ? 1 : 0; state.logPin = saved.logPin || ''; state.userPresets = (saved.userPresets && typeof saved.userPresets === 'object') ? saved.userPresets : {}; state.wantDefault = saved.wantDefault ? 1 : 0; state.prevDefaultMic = saved.prevDefaultMic || ''; state.preset = saved.preset ?? 'Voice – Natural'; }
   state.params.mute = 0; // never start muted
   // One-time fix-up: older versions shipped RANGE at 20 or 40 dB, which let a quiet copy of everything

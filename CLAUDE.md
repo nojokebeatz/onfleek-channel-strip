@@ -127,6 +127,10 @@ w/scale x h/scale so it always fills the viewport. Column min-widths must sum to
   key handler ignores inputs/selects. OUTPUT column is tight: the cable hint + tool row only fit with the compact
   paddings (.hint / .masters / .bigbtns) - screenshot before adding rows there.
 
+- 2.7.1: `fillPresetList()` runs inside `renderAll()` (buildPresets ran BEFORE loadState, so MY PRESETS
+  looked empty after every restart). main.js `state:load` merges `presets.json` + falls back to
+  `state.json.bak`; `state:save` rescues on-disk presets unless the renderer passes `presetDelete: 1`.
+
 ## Traps
 - Chromium hides device names until the mic permission is granted once — `unlockLabels()` does that.
 - `AudioContext.setSinkId('')` = default output; `'default'` id must be mapped to `''`.

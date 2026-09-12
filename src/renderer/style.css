@@ -242,3 +242,4 @@ select optgroup{color:#9a988f;font:700 11px var(--font);letter-spacing:1px;backg
 #strip.locked .knob .cap{filter:brightness(.8)}
 #shareLink{width:100%;box-sizing:border-box;font:12px Consolas,monospace}
 #shareCopied{color:var(--amber);min-height:14px;margin-top:8px}
+.built{margin-left:14px;font:800 10px var(--font);letter-spacing:2px;color:#ffb02e;text-shadow:0 0 6px rgba(255,176,46,.45);white-space:nowrap}

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.7.1 — 2026-09-12 — your presets are back
+- Bug: a saved preset (like "Icee") vanished from the PRESET list after a restart. It was still on disk;
+  the list was built before your settings loaded. Fixed: the list refills after loading.
+- Presets are now also kept in their own file (presets.json) plus a backup of settings, and a save can
+  never drop a preset that is still on disk. The log says how many presets loaded.
+- "BUILT BY THE GARY WHITE" in the top bar.
+
 ## 2.7.0 — 2026-09-12 — ten improvements + SHARE
 Looks:
 - A section whose IN is off goes dim, so you can see what is working at a glance. BYPASS dims them all.

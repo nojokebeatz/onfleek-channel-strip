@@ -181,14 +181,35 @@ ipcMain.handle('audio:setDefault', async (e, name, adapter) => {
   catch (e) { return 'FAILED ' + String(e.message || e).slice(0, 120); }
 });
 
+// Settings live in state.json. Your saved presets ALSO live in presets.json, and every save keeps a .bak,
+// so a bad write or a broken update can never take "MY PRESETS" with it.
+const presetsPath = () => path.join(app.getPath('userData'), 'presets.json');
+const readJson = (f) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
+const writeJson = (f, obj) => { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f + '.tmp', JSON.stringify(obj, null, 2), 'utf8'); fs.renameSync(f + '.tmp', f); };
 ipcMain.handle('state:load', () => {
-  try { return JSON.parse(fs.readFileSync(statePath(), 'utf8')); } catch { return null; }
+  const p = statePath();
+  let st = readJson(p);
+  if (!st) { st = readJson(p + '.bak'); logLine('main', 'state.json unreadable' + (st ? ' - using state.json.bak' : ' and no .bak')); }
+  const extra = readJson(presetsPath()) || {};
+  st = st || {};
+  st.userPresets = Object.assign({}, extra, (st.userPresets && typeof st.userPresets === 'object') ? st.userPresets : {});
+  logLine('main', 'state loaded: ' + Object.keys(st.userPresets).length + ' user preset(s) [' + Object.keys(st.userPresets).join(', ') + ']');
+  return st.params ? st : (Object.keys(st.userPresets).length ? st : null);
 });
 ipcMain.handle('state:save', (e, state) => {
   const p = statePath();
-  fs.mkdirSync(path.dirname(p), { recursive: true });
-  fs.writeFileSync(p + '.tmp', JSON.stringify(state, null, 2), 'utf8');
-  fs.renameSync(p + '.tmp', p);
+  const onDisk = readJson(p) || {};
+  const mine = (state.userPresets && typeof state.userPresets === 'object') ? state.userPresets : {};
+  // never let a save DROP presets that are still on disk unless the app deleted them on purpose
+  if (!state.presetDelete) {
+    const disk = (onDisk.userPresets && typeof onDisk.userPresets === 'object') ? onDisk.userPresets : {};
+    for (const k in disk) if (!(k in mine)) { mine[k] = disk[k]; logLine('main', 'preset rescued from disk: ' + k); }
+    state.userPresets = mine;
+  }
+  delete state.presetDelete;
+  try { if (fs.existsSync(p)) fs.copyFileSync(p, p + '.bak'); } catch {}
+  writeJson(p, state);
+  writeJson(presetsPath(), state.userPresets || {});
   return true;
 });
 ipcMain.handle('app:version', () => app.getVersion());
