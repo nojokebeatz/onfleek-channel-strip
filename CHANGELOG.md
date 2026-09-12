@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.4 — 2026-09-12
+- Log file: every LCD message, device list, button result, PowerShell result, updater event and error
+  goes to %APPDATA%\OnFleek Channel Strip\strip.log (rotates at 1 MB). Tray menu: "Show log file".
+- SEND LOG button in the top rail: posts the log to windows.onfleek.live with your OnFleek PIN (asked
+  once, saved on this PC only) so Claude can read it without you copying anything.
+
 ## 2.2.3 — 2026-09-12
 - The name "Virtual Mic Out" only counts when it sits on the cable the app actually feeds (same maker).
   A leftover copy on another maker's device (for example Voicemeeter) is called out as a stray, and

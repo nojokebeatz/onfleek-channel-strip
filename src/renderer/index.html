@@ -13,10 +13,18 @@
   <div class="rail-top" id="titlebar">
     <i class="screw"></i>
     <div class="brand"><span class="logo">OnFleek</span><span class="model">CS-9000 · VOCAL CHANNEL STRIP</span><span class="ver" id="verLabel"></span></div>
-    <div class="winbtns"><button class="upd" id="btnUpdate" title="Check for a new version"><i class="led green" id="ledUpd"></i><span id="btnUpdateText">UPDATE</span></button><button id="btnMin" title="Minimize">&#8211;</button><button id="btnClose" title="Close">&#215;</button></div>
+    <div class="winbtns"><button class="upd" id="btnLog" title="Send the app's log to OnFleek so Claude can read it">SEND LOG</button><button class="upd" id="btnUpdate" title="Check for a new version"><i class="led green" id="ledUpd"></i><span id="btnUpdateText">UPDATE</span></button><button id="btnMin" title="Minimize">&#8211;</button><button id="btnClose" title="Close">&#215;</button></div>
     <i class="screw"></i>
   </div>
 
+  <div id="pinBox" class="pinbox" hidden>
+    <div class="pinbox-card">
+      <div class="pinbox-title">SEND LOG TO ONFLEEK</div>
+      <div class="pinbox-text">Type the PIN you use for windows.onfleek.live. It is saved on this PC only.</div>
+      <input id="pinInput" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN">
+      <div class="pinbox-btns"><button class="hintbtn" id="pinOk">SEND</button><button class="tog wide" id="pinCancel">CANCEL</button></div>
+    </div>
+  </div>
   <div id="updateBar" hidden><span id="updateText">New version available</span><button id="updateBtn">GET IT</button></div>
 
   <div class="plate">

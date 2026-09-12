@@ -3,6 +3,19 @@ const { app, BrowserWindow, ipcMain, shell, session, Tray, Menu, nativeImage, gl
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
+const os = require('os');
+
+/* ---------- log file: %APPDATA%\OnFleek Channel Strip\strip.log (rotates at 1 MB) ---------- */
+const logPath = () => path.join(app.getPath('userData'), 'strip.log');
+function logLine(src, msg) {
+  try {
+    const p = logPath();
+    try { if (fs.existsSync(p) && fs.statSync(p).size > 1024 * 1024) fs.renameSync(p, p + '.1'); } catch {}
+    fs.appendFileSync(p, `${new Date().toISOString()} [${src}] ${String(msg).replace(/\r?\n/g, ' / ').slice(0, 4000)}\n`, 'utf8');
+  } catch {}
+}
+process.on('uncaughtException', (e) => logLine('main', 'UNCAUGHT ' + (e && e.stack || e)));
+process.on('unhandledRejection', (e) => logLine('main', 'UNHANDLED ' + (e && e.stack || e)));
 
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
@@ -45,6 +58,7 @@ app.whenReady().then(() => {
   const ALLOWED = new Set(['media', 'audioCapture', 'speaker-selection']);
   session.defaultSession.setPermissionRequestHandler((wc, perm, cb) => cb(ALLOWED.has(perm)));
   session.defaultSession.setPermissionCheckHandler((wc, perm) => ALLOWED.has(perm));
+  logLine('main', `start v${app.getVersion()} electron ${process.versions.electron} win ${os.release()} args ${process.argv.slice(1).join(' ')}`);
   createWindow();
   createTray();
   globalShortcut.register('CommandOrControl+Shift+M', () => win && win.webContents.send('hotkey', 'mute'));
@@ -61,6 +75,7 @@ function trayMenu() {
     { label: 'Show Channel Strip', click: showWin },
     { label: 'Mute mic   (Ctrl+Shift+M)', type: 'checkbox', checked: muted, click: () => win && win.webContents.send('hotkey', 'mute') },
     { label: 'Start with Windows', type: 'checkbox', checked: app.getLoginItemSettings().openAtLogin, click: (item) => setAutostart(item.checked) },
+    { label: 'Show log file', click: () => shell.showItemInFolder(logPath()) },
     { type: 'separator' },
     { label: 'Quit', click: () => { quitting = true; app.quit(); } }
   ]);
@@ -88,9 +103,13 @@ ipcMain.handle('mute:state', (e, m) => {
    there (that is how the Settings app renames), but only if the key is opened asking for SetValue alone,
    so this goes through .NET Registry with minimal rights. No admin prompt. */
 const runPSOut = (args) => new Promise((resolve, reject) => {
+  const shown = args.map(a => path.basename(String(a))).join(' ');
   const p = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', ...args], { windowsHide: true });
   let out = '', err = ''; p.stdout.on('data', d => out += d); p.stderr.on('data', d => err += d);
-  p.on('close', code => code === 0 ? resolve(out.trim()) : reject(new Error((err || out).trim() || ('exit ' + code))));
+  p.on('close', code => {
+    logLine('ps', `${shown} -> exit ${code}: ${(out || '').trim()} ${(err || '').trim()}`);
+    code === 0 ? resolve(out.trim()) : reject(new Error((err || out).trim() || ('exit ' + code)));
+  });
 });
 ipcMain.handle('mic:rename', async (e, from, to, flow, adapter) => {
   const esc = s => String(s).replace(/'/g, "''").replace(/[\r\n]/g, '');
@@ -144,6 +163,7 @@ if (process.argv.includes('--selftest')) app.whenReady().then(async () => { proc
 let defaultMemo = { prev: '', want: '' }, restoredOnQuit = false;
 ipcMain.handle('audio:remember', (e, prev, want) => { defaultMemo = { prev: String(prev || ''), want: String(want || '') }; });
 app.on('before-quit', (e) => {
+  logLine('main', `quit (restore default mic: ${defaultMemo.prev ? 'yes -> ' + defaultMemo.prev : 'no'})`);
   if (restoredOnQuit || !defaultMemo.prev || !defaultMemo.want) return;
   restoredOnQuit = true; e.preventDefault();
   runPSOut(['-File', defaultsScript(), 'set', defaultMemo.prev]).catch(() => {}).finally(() => app.quit());
@@ -180,7 +200,9 @@ if (app.isPackaged && !isPortable) {
     updater.on('update-available', (i) => tell('available', { version: i.version }));
     updater.on('download-progress', (p) => tell('progress', { percent: Math.round(p.percent) }));
     updater.on('update-downloaded', (i) => tell('downloaded', { version: i.version }));
-    updater.on('error', (e) => tell('error', { message: String(e && e.message || e).slice(0, 120) }));
+    updater.on('error', (e) => { logLine('update', 'error ' + (e && e.message || e)); tell('error', { message: String(e && e.message || e).slice(0, 120) }); });
+    updater.on('update-available', (i) => logLine('update', 'available ' + i.version));
+    updater.on('update-downloaded', (i) => logLine('update', 'downloaded ' + i.version));
   } catch (e) { updater = null; }
 }
 ipcMain.handle('update:mode', () => updater ? 'auto' : 'manual');
@@ -195,6 +217,21 @@ const runPS = (cmd) => new Promise((resolve, reject) => {
   p.on('close', code => code === 0 ? resolve() : reject(new Error(err.trim() || ('exit ' + code))));
 });
 const CABLE_URL = 'https://download.vb-audio.com/Download_CABLE/VBCABLE_Driver_Pack45.zip';
+ipcMain.handle('log:write', (e, msg) => logLine('ui', msg));
+ipcMain.handle('log:path', () => logPath());
+// SEND LOG: post the log to windows.onfleek.live's upload door (same PIN the chat page uses) so the
+// file lands on the server where Claude can read it. Nothing else leaves the PC.
+ipcMain.handle('log:send', async (e, pin) => {
+  let body = ''; try { body = fs.readFileSync(logPath(), 'utf8'); } catch { body = '(no log yet)'; }
+  if (body.length > 400000) body = '...(older lines trimmed)...\n' + body.slice(-400000);
+  const head = `OnFleek Channel Strip v${app.getVersion()} · sent ${new Date().toISOString()} · ${os.hostname()} · Windows ${os.release()}\n\n`;
+  const res = await fetch('https://windows.onfleek.live/api/upload-image?name=channel-strip-log&ext=txt', {
+    method: 'POST', headers: { 'X-Window-Pin': String(pin || ''), 'Content-Type': 'text/plain' }, body: head + body });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) { logLine('main', 'log send failed ' + res.status + ' ' + (j.error || '')); throw new Error(j.error || ('HTTP ' + res.status)); }
+  logLine('main', 'log sent as ' + j.name);
+  return j.name;
+});
 ipcMain.handle('cable:install', async () => {
   const progress = (s) => win && win.webContents.send('cable:progress', s);
   const dir = path.join(app.getPath('temp'), 'onfleek-vbcable');

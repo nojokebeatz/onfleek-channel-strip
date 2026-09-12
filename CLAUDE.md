@@ -80,6 +80,15 @@ with the window not shown. Mute never persists across launches (reset to 0 on lo
 w/scale x h/scale so it always fills the viewport. Column min-widths must sum to <= NAT_W
 (330 + 312 + 312 + 356 + 230 = 1540). Meter canvas draws in 150x270 space zoomed by `MK` onto 190x340.
 
+## Log + SEND LOG (2.2.4)
+- `%APPDATA%\OnFleek Channel Strip\strip.log` — `logLine(src,msg)` in main.js; renderer `log()` via IPC.
+  Every `lcd()` call, device lists, NAME IT / MAKE DEFAULT results, every PowerShell run + output.
+- SEND LOG posts to `https://windows.onfleek.live/api/upload-image?name=channel-strip-log&ext=txt` with
+  header `X-Window-Pin` (his admin PIN, saved in state.json as `logPin`). ⛔ Uploads land INSIDE the
+  container volume, not the host folder: read with
+  `docker exec onfleek-windows sh -c 'ls -t /state/uploads | grep channel-strip-log | head -1'` then
+  `docker exec onfleek-windows cat /state/uploads/<name>`.
+
 ## Traps
 - Chromium hides device names until the mic permission is granted once — `unlockLabels()` does that.
 - `AudioContext.setSinkId('')` = default output; `'default'` id must be mapped to `''`.

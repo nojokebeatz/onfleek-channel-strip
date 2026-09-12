@@ -1,6 +1,9 @@
 /* OnFleek Channel Strip — front panel logic */
 (() => {
 const $ = (s, r = document) => r.querySelector(s);
+const log = (m) => { try { window.cs.log(m); } catch {} };
+window.addEventListener('error', e => log('JS ERROR ' + (e.message || '') + ' @' + (e.filename || '') + ':' + (e.lineno || '')));
+window.addEventListener('unhandledrejection', e => log('JS REJECTION ' + (e.reason && (e.reason.stack || e.reason.message) || e.reason)));
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const dB = (g) => 20 * Math.log10(Math.max(g, 1e-6));
@@ -55,7 +58,7 @@ const PRESETS = {
 };
 
 /* ---------- state ---------- */
-const state = { params: DEFAULT_PARAMS(), inputId: '', outputId: '', phonesId: '', mon: 0, nr: 0, wantDefault: 0, prevDefaultMic: '', preset: 'Voice – Natural' };
+const state = { params: DEFAULT_PARAMS(), inputId: '', outputId: '', phonesId: '', mon: 0, nr: 0, wantDefault: 0, prevDefaultMic: '', logPin: '', preset: 'Voice – Natural' };
 let ctx = null, node = null, stream = null, running = false, version = '0.0.0';
 let monCtx = null, monNode = null, monStream = null, monGain = null, lastOuts = [], setupTimer = 0, defaults = null, prevDefault = '';
 let learning = false, runLcd = 'STANDBY', reconnectTimer = 0, lastIns = [];
@@ -178,7 +181,7 @@ function buildPresets() {
 }
 
 /* ---------- audio engine ---------- */
-const lcd = (t, err) => { const e = $('#lcd'); e.textContent = t; e.classList.toggle('err', !!err); };
+const lcd = (t, err) => { const e = $('#lcd'); e.textContent = t; e.classList.toggle('err', !!err); log((err ? 'LCD ERR: ' : 'LCD: ') + t); };
 // The cable: a playback device whose sound comes back out as a microphone. VB-CABLE, or Voicemeeter's.
 const CABLE_RX = /cable input|virtual mic feed|voicemeeter (aux |vaio3 )?input/i;
 const MIC_NAME = 'Virtual Mic Out', FEED_NAME = 'Virtual Mic Feed';
@@ -243,7 +246,7 @@ function renderSetup() {
   $('#ledZoom').classList.toggle('on', !!cab && running && !state.params.mute);
   $('#zoomText').textContent = cab ? (renamed ? MIC_NAME : from) : 'NO CABLE \u00b7 SEE SETUP';
 }
-async function refreshDefaults() { defaults = await window.cs.audioDefaults(); renderSetup(); }
+async function refreshDefaults() { defaults = await window.cs.audioDefaults(); log('windows default mic: ' + JSON.stringify(defaults)); renderSetup(); }
 async function refreshDevices() {
   const devs = await navigator.mediaDevices.enumerateDevices();
   const ins = devs.filter(d => d.kind === 'audioinput' && d.deviceId !== 'communications');
@@ -255,6 +258,8 @@ async function refreshDevices() {
     return pick ? pick.deviceId : '';
   };
   lastIns = ins; lastOuts = outs;
+  log('mics: ' + ins.map(d => d.label || '?').join(' | '));
+  log('outputs: ' + outs.map(d => d.label || '?').join(' | '));
   // MIC IN: never offer the cable's own mic side as an input (that would be a loop)
   const realIns = ins.filter(d => !/cable output|virtual mic|voicemeeter/i.test(d.label || ''));
   state.inputId = fill($('#selIn'), realIns.length ? realIns : ins, state.inputId, d => /virtual mic in|virtual usb/i.test(d.label));
@@ -263,6 +268,8 @@ async function refreshDevices() {
   state.phonesId = fill($('#selPhones'), phones.length ? phones : outs, state.phonesId, d => d.deviceId === 'default');
   // TO ZOOM: found by itself
   const cab = cableOut(); state.outputId = cab ? cab.deviceId : '';
+  const lab = (sel) => sel.selectedOptions[0] ? sel.selectedOptions[0].textContent : '(none)';
+  log(`picked: mic=${lab($('#selIn'))} | phones=${lab($('#selPhones'))} | cable=${cab ? cab.label : '(none)'} | renamed=${micSideRenamed()} strays=${strayMics().map(d => d.label).join(',') || 'none'}`);
   renderSetup();
   return { ins, outs };
 }
@@ -329,10 +336,11 @@ async function start() {
     $('#btnPower').classList.add('on'); $('.led', $('#btnPower')).classList.add('on');
     const lat = Math.round(((ctx.baseLatency || 0) + (ctx.outputLatency || 0)) * 1000);
     runLcd = `RUN · ${(ctx.sampleRate / 1000).toFixed(1)} kHz · ${lat} ms`; lcd(runLcd); drawCurve();
+    log(`engine up: sink=${state.outputId ? 'cable' : 'none'} track=${stream.getAudioTracks()[0] && stream.getAudioTracks()[0].label} nr=${state.nr}`);
     if (state.mon) await startMon();
     renderSetup();
   } catch (e) {
-    lcd('MIC ERROR: ' + (e.message || e.name), true); await stop();
+    log('start failed: ' + (e && (e.stack || e.message || e.name))); lcd('MIC ERROR: ' + (e.message || e.name), true); await stop();
   }
 }
 async function stop() {
@@ -594,7 +602,7 @@ async function boot() {
   version = await window.cs.version(); $('#verLabel').textContent = 'v' + version;
   $$('[data-knob]').forEach(buildKnob); $$('[data-tog]').forEach(buildToggle); buildFader(); buildPresets();
   const saved = await window.cs.loadState();
-  if (saved && saved.params) { state.params = Object.assign(DEFAULT_PARAMS(), saved.params); state.inputId = saved.inputId || ''; state.phonesId = saved.phonesId || ''; state.mon = saved.mon ? 1 : 0; state.nr = saved.nr ? 1 : 0; state.wantDefault = saved.wantDefault ? 1 : 0; state.prevDefaultMic = saved.prevDefaultMic || ''; state.preset = saved.preset ?? 'Voice – Natural'; }
+  if (saved && saved.params) { state.params = Object.assign(DEFAULT_PARAMS(), saved.params); state.inputId = saved.inputId || ''; state.phonesId = saved.phonesId || ''; state.mon = saved.mon ? 1 : 0; state.nr = saved.nr ? 1 : 0; state.logPin = saved.logPin || ''; state.wantDefault = saved.wantDefault ? 1 : 0; state.prevDefaultMic = saved.prevDefaultMic || ''; state.preset = saved.preset ?? 'Voice – Natural'; }
   state.params.mute = 0; // never start muted
   renderAll();
   // MUTE from the tray or the global Ctrl+Shift+M
@@ -620,7 +628,7 @@ async function boot() {
     try {
       const cab = cableOut(); const key = cab ? familyKey(cab.label) : '';
       for (const st of strayMics()) { try { await window.cs.renameMic(MIC_NAME, 'Unused Virtual Mic', 'capture', familyKey(st.label)); } catch {} }
-      const r = await window.cs.renameMic(from, MIC_NAME, 'capture', key);
+      const r = await window.cs.renameMic(from, MIC_NAME, 'capture', key); log('NAME IT ' + from + ' -> ' + MIC_NAME + ' [' + key + ']: ' + r);
       const feedFrom = cab ? (cab.label || '').replace(/\s*\(.*$/, '') : '';
       if (cab && /^cable input$/i.test(feedFrom)) { try { await window.cs.renameMic(feedFrom, FEED_NAME, 'render', key); } catch {} }
       const ok = /RENAMED [1-9]/.test(r);
@@ -655,6 +663,16 @@ async function boot() {
     $('#btnBoot').classList.toggle('on', on); flashLcd(on ? 'STARTS WITH WINDOWS · LIVES IN THE TRAY' : 'AUTO START OFF', 2500);
   };
   $('#btnMin').onclick = () => window.cs.minimize(); $('#btnClose').onclick = () => window.cs.close();
+  // SEND LOG: ask for the OnFleek PIN once, then post the log file to windows.onfleek.live
+  const sendLog = async (pin) => {
+    lcd('SENDING LOG\u2026');
+    try { const name = await window.cs.sendLog(pin); state.logPin = pin; save(); flashLcd('LOG SENT \u00b7 TELL CLAUDE TO READ ' + name, 6000); }
+    catch (e) { const m = String(e.message || e); if (/bad pin|401/i.test(m)) { state.logPin = ''; save(); lcd('WRONG PIN \u00b7 PRESS SEND LOG AGAIN', true); } else lcd('LOG NOT SENT: ' + m.slice(0, 60), true); }
+  };
+  $('#btnLog').onclick = () => { if (state.logPin) sendLog(state.logPin); else { $('#pinInput').value = ''; $('#pinBox').hidden = false; setTimeout(() => $('#pinInput').focus(), 50); } };
+  $('#pinCancel').onclick = () => { $('#pinBox').hidden = true; };
+  $('#pinOk').onclick = () => { const pin = $('#pinInput').value.trim(); $('#pinBox').hidden = true; if (pin) sendLog(pin); };
+  $('#pinInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('#pinOk').click(); if (e.key === 'Escape') $('#pinCancel').click(); });
   $('#cableLink').onclick = e => { e.preventDefault(); window.cs.openExternal('https://vb-audio.com/Cable/'); };
   window.cs.onCableProgress(s => lcd({ download: 'DOWNLOADING VB-CABLE…', extract: 'UNPACKING…', launch: 'OPENING VB-CABLE SETUP · CLICK YES' }[s] || s));
   $('#btnCable').onclick = async () => {
@@ -681,7 +699,7 @@ async function boot() {
     const want = micSideRenamed() ? MIC_NAME : otherAppsMic(cab.label);
     $('#ckDefault').classList.add('busy'); lcd(`TELLING WINDOWS: DEFAULT MIC = \u201c${want}\u201d\u2026`);
     const before = defaults && defaults.communications || '';
-    const r = await window.cs.audioSetDefault(want, familyKey(cab.label));
+    const r = await window.cs.audioSetDefault(want, familyKey(cab.label)); log('MAKE DEFAULT ' + want + ' [' + familyKey(cab.label) + ']: ' + r);
     await refreshDefaults();
     if (/^SET /.test(r)) {
       // Remember: your real mic comes back when this app quits, and the strip takes over again on start.
