@@ -25,6 +25,14 @@
       <div class="pinbox-btns"><button class="hintbtn" id="pinOk">SEND</button><button class="tog wide" id="pinCancel">CANCEL</button></div>
     </div>
   </div>
+  <div id="nameBox" class="pinbox" hidden>
+    <div class="pinbox-card">
+      <div class="pinbox-title">SAVE PRESET</div>
+      <div class="pinbox-text">Give these settings a name. Use a name you already saved to replace it.</div>
+      <input id="nameInput" type="text" maxlength="32" autocomplete="off" placeholder="My voice" class="nameinput">
+      <div class="pinbox-btns"><button class="hintbtn" id="nameOk">SAVE</button><button class="tog wide" id="nameCancel">CANCEL</button></div>
+    </div>
+  </div>
   <div id="updateBar" hidden><span id="updateText">New version available</span><button id="updateBtn">GET IT</button></div>
 
   <div class="plate">
@@ -58,8 +66,10 @@
         <div class="sec-head"><span class="sec-title">OUTPUT</span>
           <div class="sec-btns"><span class="ledlabel"><i class="led amber" id="ledLim"></i></span><button class="tog" data-tog="limIn" data-lamp="#ffb02e" title="Safety limiter: nothing louder than -1 dB gets out">LIM</button></div>
         </div>
-        <div class="patchrow">
+        <div class="patchrow presetrow">
           <label class="patch"><span>PRESET</span><select id="selPreset"></select></label>
+          <button class="hintbtn small" id="btnSavePreset" title="Save these settings under your own name">SAVE</button>
+          <button class="tog" id="btnDelPreset" data-lamp="#ff3b30" title="Delete this saved preset" hidden>DEL</button>
         </div>
         <div class="knobrow masters">
           <div class="slot tozoom"><span class="ledlabel big"><i class="led green" id="ledZoom"></i>TO APPS</span><span class="tiny" id="zoomText">Virtual Mic Out</span><span class="tiny">WHAT MEET / ZOOM HEAR</span></div>

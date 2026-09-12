@@ -208,3 +208,11 @@ select:focus{outline:none;border-color:#6b5a2a}
 .pinbox-btns{display:flex;gap:10px;justify-content:flex-end}
 
 .lcdsmall.gatecut{min-width:0;width:94px;height:20px;line-height:18px;font-size:9px;letter-spacing:.8px;color:#ffb347;text-shadow:0 0 5px rgba(255,179,71,.5)}
+
+/* ---------- preset row + name box ---------- */
+.presetrow{align-items:flex-end;gap:8px}
+.presetrow .hintbtn.small{height:30px}
+.presetrow .tog{height:30px}
+.presetrow .tog[hidden]{display:none}
+.pinbox input.nameinput{letter-spacing:.5px;text-align:left;font:600 15px var(--font);padding:0 10px;color:#f2eee2}
+select optgroup{color:#9a988f;font:700 11px var(--font);letter-spacing:1px;background:#0f1012}

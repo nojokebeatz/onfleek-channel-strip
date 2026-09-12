@@ -58,7 +58,7 @@ const PRESETS = {
 };
 
 /* ---------- state ---------- */
-const state = { params: DEFAULT_PARAMS(), inputId: '', outputId: '', phonesId: '', mon: 0, nr: 0, wantDefault: 0, prevDefaultMic: '', logPin: '', rangeMigrated: 0, preset: 'Voice – Natural' };
+const state = { params: DEFAULT_PARAMS(), inputId: '', outputId: '', phonesId: '', mon: 0, nr: 0, wantDefault: 0, prevDefaultMic: '', logPin: '', rangeMigrated: 0, userPresets: {}, preset: 'Voice – Natural' };
 let ctx = null, node = null, stream = null, running = false, version = '0.0.0';
 let monCtx = null, monNode = null, monStream = null, monGain = null, lastOuts = [], setupTimer = 0, defaults = null, prevDefault = '';
 let learning = false, runLcd = 'STANDBY', reconnectTimer = 0, lastIns = [];
@@ -155,10 +155,10 @@ function renderFader() {
 }
 
 /* ---------- render all / change plumbing ---------- */
-function renderAll() { for (const id in knobEls) renderKnob(id); for (const id in togEls) renderToggle(id); renderFader(); $('#selPreset').value = state.preset in PRESETS ? state.preset : ''; drawCurve(); }
+function renderAll() { for (const id in knobEls) renderKnob(id); for (const id in togEls) renderToggle(id); renderFader(); $('#selPreset').value = presetValid(state.preset) ? state.preset : ''; $('#btnDelPreset').hidden = !isUserPreset(state.preset); drawCurve(); }
 let sendPending = false, saveTimer = 0;
 function changed(keepPreset) {
-  if (!keepPreset && state.preset !== '') { state.preset = ''; $('#selPreset').value = ''; }
+  if (!keepPreset && state.preset !== '') { state.preset = ''; $('#selPreset').value = ''; $('#btnDelPreset').hidden = true; }
   if (!sendPending) { sendPending = true; requestAnimationFrame(() => { sendPending = false; sendParams(); drawCurve(); }); }
   clearTimeout(saveTimer); saveTimer = setTimeout(save, 400);
 }
@@ -170,14 +170,47 @@ function sendParams() {
 function save() { window.cs.saveState(state).catch(() => {}); }
 
 /* ---------- presets ---------- */
+// Presets: factory ones from PRESETS, plus your own saved under "MY PRESETS" (select value "u:<name>").
+const NOT_IN_PRESET = ['phones', 'mute', 'fader'];   // per-session things a preset should not drag along
+const isUserPreset = (v) => typeof v === 'string' && v.startsWith('u:');
+const presetValid = (v) => (v in PRESETS) || (isUserPreset(v) && state.userPresets && (v.slice(2) in state.userPresets));
+function presetParams(v) { return v in PRESETS ? PRESETS[v] : (state.userPresets[v.slice(2)] || {}); }
+function fillPresetList() {
+  const sel = $('#selPreset'); const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+  const mine = Object.keys(state.userPresets || {}).sort((a, b) => a.localeCompare(b));
+  sel.innerHTML = '<optgroup label="BUILT IN">' + Object.keys(PRESETS).map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('') + '</optgroup>'
+    + (mine.length ? '<optgroup label="MY PRESETS">' + mine.map(n => `<option value="u:${esc(n)}">${esc(n)}</option>`).join('') + '</optgroup>' : '')
+    + '<option value="">Custom (unsaved)</option>';
+  sel.value = presetValid(state.preset) ? state.preset : '';
+  $('#btnDelPreset').hidden = !isUserPreset(sel.value);
+}
 function buildPresets() {
   const sel = $('#selPreset');
-  sel.innerHTML = Object.keys(PRESETS).map(n => `<option value="${n}">${n}</option>`).join('') + '<option value="">Custom</option>';
+  fillPresetList();
   sel.addEventListener('change', () => {
-    if (!sel.value) return;
-    const keep = { phones: state.params.phones, mute: state.params.mute };
-    state.params = Object.assign(DEFAULT_PARAMS(), PRESETS[sel.value], keep); state.preset = sel.value; renderAll(); changed(true);
+    $('#btnDelPreset').hidden = !isUserPreset(sel.value);
+    if (!sel.value) { state.preset = ''; save(); return; }
+    const keep = {}; NOT_IN_PRESET.forEach(k => keep[k] = state.params[k]);
+    state.params = Object.assign(DEFAULT_PARAMS(), presetParams(sel.value), keep); state.preset = sel.value; renderAll(); changed(true);
+    log('preset loaded: ' + sel.value);
   });
+  // SAVE: name it, keep it. Same name = replace.
+  const nameBox = $('#nameBox'), nameInput = $('#nameInput');
+  const savePreset = () => {
+    const name = nameInput.value.trim().slice(0, 32); nameBox.hidden = true; if (!name) return;
+    const snap = {}; for (const k in state.params) if (!NOT_IN_PRESET.includes(k)) snap[k] = state.params[k];
+    const replaced = !!state.userPresets[name];
+    state.userPresets[name] = snap; state.preset = 'u:' + name; fillPresetList(); save();
+    flashLcd(`PRESET \u201c${name.toUpperCase()}\u201d ${replaced ? 'REPLACED' : 'SAVED'}`, 3000); log('preset saved: ' + name);
+  };
+  $('#btnSavePreset').onclick = () => { nameInput.value = isUserPreset(state.preset) ? state.preset.slice(2) : ''; nameBox.hidden = false; setTimeout(() => { nameInput.focus(); nameInput.select(); }, 50); };
+  $('#nameOk').onclick = savePreset; $('#nameCancel').onclick = () => { nameBox.hidden = true; };
+  nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') savePreset(); if (e.key === 'Escape') nameBox.hidden = true; });
+  $('#btnDelPreset').onclick = () => {
+    if (!isUserPreset(state.preset)) return;
+    const name = state.preset.slice(2); delete state.userPresets[name]; state.preset = ''; fillPresetList(); save();
+    flashLcd(`PRESET \u201c${name.toUpperCase()}\u201d DELETED`, 3000); log('preset deleted: ' + name);
+  };
 }
 
 /* ---------- audio engine ---------- */
@@ -614,7 +647,7 @@ async function boot() {
   version = await window.cs.version(); $('#verLabel').textContent = 'v' + version;
   $$('[data-knob]').forEach(buildKnob); $$('[data-tog]').forEach(buildToggle); buildFader(); buildPresets();
   const saved = await window.cs.loadState();
-  if (saved && saved.params) { state.params = Object.assign(DEFAULT_PARAMS(), saved.params); state.inputId = saved.inputId || ''; state.phonesId = saved.phonesId || ''; state.mon = saved.mon ? 1 : 0; state.nr = saved.nr ? 1 : 0; state.logPin = saved.logPin || ''; state.wantDefault = saved.wantDefault ? 1 : 0; state.prevDefaultMic = saved.prevDefaultMic || ''; state.preset = saved.preset ?? 'Voice – Natural'; }
+  if (saved && saved.params) { state.params = Object.assign(DEFAULT_PARAMS(), saved.params); state.inputId = saved.inputId || ''; state.phonesId = saved.phonesId || ''; state.mon = saved.mon ? 1 : 0; state.nr = saved.nr ? 1 : 0; state.logPin = saved.logPin || ''; state.userPresets = (saved.userPresets && typeof saved.userPresets === 'object') ? saved.userPresets : {}; state.wantDefault = saved.wantDefault ? 1 : 0; state.prevDefaultMic = saved.prevDefaultMic || ''; state.preset = saved.preset ?? 'Voice – Natural'; }
   state.params.mute = 0; // never start muted
   // One-time fix-up: older versions shipped RANGE at 20 or 40 dB, which let a quiet copy of everything
   // through a closed gate. Move untouched values to FULL (dead silent) and say so once.

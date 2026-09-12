@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.3.2 — 2026-09-12
+- Save your own presets: SAVE button next to PRESET asks for a name and keeps the settings under
+  "MY PRESETS" in the list. Same name = replace. DEL removes the selected one.
+- A preset never carries the fader, PHONES level or MUTE, so loading one does not jump your volume.
+
 ## 2.3.1 — 2026-09-12
 - RANGE now defaults to FULL, so a closed gate means silence. Untouched old settings (20 or 40 dB) are
   moved to FULL once, with a note on the screen. Turn RANGE down only if you want a softer gate.
