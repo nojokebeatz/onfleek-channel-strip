@@ -67,9 +67,11 @@ class StripProcessor extends AudioWorkletProcessor {
     this.dn = 1e-18;
     this.pkIn = 0; this.pkOut = 0; this.grMax = 0; this.gateRedMax = 0; this.count = 0;
     this.gateLvlMax = -120; this.clipCount = 0; this.nanCount = 0;
-    this.recIn = null; this.recOut = null; this.recPos = 0;
+    this.recIn = null; this.recOut = null; this.recPos = 0; this.take = null; this.playing = false; this.playPos = 0;
     this.port.onmessage = (e) => {
       if (e.data.type === 'params') { Object.assign(this.p, e.data.p); this.update(); }
+      else if (e.data.type === 'take') { this.take = e.data.buf; this.playPos = 0; }
+      else if (e.data.type === 'play') { this.playing = !!e.data.on && !!this.take; this.playPos = 0; }
       else if (e.data.type === 'rec') { const n = Math.round(Math.min(30, e.data.seconds || 10) * sampleRate); this.recIn = new Float32Array(n); this.recOut = new Float32Array(n); this.recPos = 0; }
     };
     this.update();
@@ -106,6 +108,7 @@ class StripProcessor extends AudioWorkletProcessor {
     for (let i = 0; i < n; i++) {
       let x = 0;
       if (inp.length === 1) x = inp[0][i]; else if (inp.length > 1) x = 0.5 * (inp[0][i] + inp[1][i]);
+      if (this.playing) { x = this.take[this.playPos]; this.playPos = (this.playPos + 1) % this.take.length; }   // PLAY: the saved take instead of the mic
       this.dn = -this.dn; x += this.dn;
       const raw = x;
       this.trimG += (this.trimT - this.trimG) * sm; x *= this.trimG;
@@ -167,7 +170,7 @@ class StripProcessor extends AudioWorkletProcessor {
       this.muteG += (this.muteT - this.muteG) * sm; x *= this.muteG;
       if (x !== x) { x = 0; this.nanCount++; }
       if (this.recIn) {
-        if (this.recPos < this.recIn.length) { this.recIn[this.recPos] = xin; this.recOut[this.recPos] = x; this.recPos++; }
+        if (this.recPos < this.recIn.length) { this.recIn[this.recPos] = raw; this.recOut[this.recPos] = x; this.recPos++; }
         else { const a = this.recIn, b = this.recOut; this.recIn = this.recOut = null; this.port.postMessage({ type: 'recDone', inBuf: a, outBuf: b, sr: sampleRate }, [a.buffer, b.buffer]); }
       }
       const ao = Math.abs(x); if (ao > this.pkOut) this.pkOut = ao;

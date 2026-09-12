@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('cs', {
   logPath: () => ipcRenderer.invoke('log:path'),
   sendLog: (pin) => ipcRenderer.invoke('log:send', pin),
   saveCapture: (buf) => ipcRenderer.invoke('rec:save', buf),
+  changelog: () => ipcRenderer.invoke('changelog:get'),
   onHotkey: (cb) => ipcRenderer.on('hotkey', (e, k) => cb(k)),
   muteState: (m) => ipcRenderer.invoke('mute:state', m),
   renameMic: (from, to, flow, adapter) => ipcRenderer.invoke('mic:rename', from, to, flow, adapter),

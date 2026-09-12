@@ -39,7 +39,7 @@ function createWindow() {
   });
   win.setMenuBarVisibility(false);
   win.on('close', (e) => { if (!quitting) { e.preventDefault(); win.hide(); } }); // X = hide to tray, keep processing
-  win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+  win.loadFile(path.join(__dirname, 'renderer', 'index.html'), process.argv.includes('--shotlog') ? { hash: 'shotlog' } : {});
 
   // Dev helper: --screenshot=<file.png> captures the UI and quits.
   const shot = process.argv.find(a => a.startsWith('--screenshot='));
@@ -227,6 +227,7 @@ const runPS = (cmd) => new Promise((resolve, reject) => {
 const CABLE_URL = 'https://download.vb-audio.com/Download_CABLE/VBCABLE_Driver_Pack45.zip';
 ipcMain.handle('log:write', (e, msg) => logLine('ui', msg));
 ipcMain.handle('log:path', () => logPath());
+ipcMain.handle('changelog:get', () => { try { return fs.readFileSync(path.join(__dirname, '..', 'CHANGELOG.md'), 'utf8'); } catch (e) { return 'No changelog found: ' + e.message; } });
 // REC: the renderer hands over a finished WAV; keep the last three in userData.
 ipcMain.handle('rec:save', (e, buf) => {
   const dir = app.getPath('userData'), name = 'capture-' + new Date().toISOString().replace(/[:.]/g, '-') + '.wav';

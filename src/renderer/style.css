@@ -216,3 +216,10 @@ select:focus{outline:none;border-color:#6b5a2a}
 .presetrow .tog[hidden]{display:none}
 .pinbox input.nameinput{letter-spacing:.5px;text-align:left;font:600 15px var(--font);padding:0 10px;color:#f2eee2}
 select optgroup{color:#9a988f;font:700 11px var(--font);letter-spacing:1px;background:#0f1012}
+
+.ver{cursor:pointer}
+.ver:hover{color:#fff}
+.logcard{width:720px;max-height:80vh;display:flex;flex-direction:column}
+.logtext{flex:1;overflow:auto;margin:10px 0 0;padding:10px 12px;background:#0b0c0d;color:#d6d3c6;font:12px/1.5 Consolas,monospace;white-space:pre-wrap;border-radius:4px;box-shadow:inset 0 1px 4px rgba(0,0,0,.9)}
+.tog:disabled{opacity:.45;cursor:default}
+.logtext b{display:block;color:#ffb02e;margin-top:6px;font-size:13px}

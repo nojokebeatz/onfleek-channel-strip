@@ -65,5 +65,18 @@ check('de-esser at AMOUNT 0 ignores quiet hiss', run({ deIn: 1, deFreq: 7000, de
   const ok = !bad && p.gateGain === 0;
   console.log(`${ok ? 'PASS' : 'FAIL'}  3 s of silence: gate gain floors to exactly 0 (got ${p.gateGain}) and output stays finite`); if (!ok) fails++;
 }
+{ // PLAY: with a take loaded and play on, the output is the take (looped), not the (silent) mic input
+  const p = new Proc(); p.port.onmessage({ data: { type: 'params', p: Object.assign({}, FLAT) } });
+  const take = new Float32Array(200); for (let i = 0; i < 200; i++) take[i] = 0.5 * Math.sin(i * 0.3);
+  p.port.onmessage({ data: { type: 'take', buf: take } }); p.port.onmessage({ data: { type: 'play', on: true } });
+  const z = new Float32Array(128), oL = new Float32Array(128), oR = new Float32Array(128);
+  p.process([[z]], [[oL, oR]]); p.process([[z]], [[oL, oR]]);   // second block wraps past the 200-sample take
+  let pk = 0; for (let k = 0; k < 128; k++) pk = Math.max(pk, Math.abs(oL[k]));
+  const ok = Math.abs(pk - 0.5) < 0.05;
+  console.log(`${ok ? 'PASS' : 'FAIL'}  PLAY loops the take through the strip: peak ${pk.toFixed(3)}, want 0.5`); if (!ok) fails++;
+  p.port.onmessage({ data: { type: 'play', on: false } }); for (let b = 0; b < 40; b++) p.process([[z]], [[oL, oR]]);
+  let pk2 = 0; for (let k = 0; k < 128; k++) pk2 = Math.max(pk2, Math.abs(oL[k]));
+  console.log(`${pk2 < 0.01 ? 'PASS' : 'FAIL'}  PLAY off goes back to the live mic: peak ${pk2.toFixed(3)}`); if (pk2 >= 0.01) fails++;
+}
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASS');
 process.exit(fails ? 1 : 0);

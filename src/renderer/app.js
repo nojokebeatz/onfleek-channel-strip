@@ -67,7 +67,8 @@ const GATE_HYST = 4;   // must match HYST in the worklet
 // Health counters: audio-thread stalls, clock slips, hard clips. Shown on the LCD, written to the log.
 const health = { hiccups: 0, clips: 0, nans: 0, lastT: 0, wall: 0, ct: 0 };
 const healthText = () => (health.hiccups ? ` · ${health.hiccups} STALLS` : '') + (health.clips ? ` · ${health.clips} CLIPS` : '');
-let leveling = false, recTimer = 0;
+let leveling = false, recTimer = 0, take = null, playing = false;
+const REC_SECS = 15;
 function wavStereo16(l, r, sr) {
   const n = l.length, buf = new ArrayBuffer(44 + n * 4), v = new DataView(buf);
   const w = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
@@ -78,7 +79,9 @@ function wavStereo16(l, r, sr) {
 }
 async function finishRecording(d) {
   clearInterval(recTimer); $('#btnRec').classList.remove('on');
-  try { const name = await window.cs.saveCapture(new Uint8Array(wavStereo16(d.inBuf, d.outBuf, d.sr))); log('capture saved ' + name + ' sr=' + d.sr); flashLcd('RECORDED · PRESS SEND LOG TO SEND IT TO CLAUDE', 6000); }
+  take = d.inBuf; $('#btnPlay').disabled = false;
+  if (monNode) monNode.port.postMessage({ type: 'take', buf: take.slice() });
+  try { const name = await window.cs.saveCapture(new Uint8Array(wavStereo16(d.inBuf, d.outBuf, d.sr))); log('capture saved ' + name + ' sr=' + d.sr); flashLcd('RECORDED · PRESS PLAY TO HEAR IT · SEND LOG SENDS IT TO CLAUDE', 6000); }
   catch (e) { lcd('CAPTURE FAILED: ' + (e.message || e), true); }
 }
 /* ---------- lamps: every on/off button gets a real lamp element; GSAP animates state changes ---------- */
@@ -406,8 +409,16 @@ async function startMon() {
     monGain = monCtx.createGain(); monGain.gain.value = phonesGain();
     src.connect(monNode).connect(monGain).connect(monCtx.destination);
     sendParams(); await applyMonSink(); await monCtx.resume();
+    if (take) monNode.port.postMessage({ type: 'take', buf: take.slice() });
+    if (playing) monNode.port.postMessage({ type: 'play', on: true });
     $('#monText').textContent = 'MON ON';
   } catch (e) { flashLcd('MONITOR FAILED: ' + (e.message || e.name)); await stopMon(); state.mon = 0; $('#btnMon').classList.remove('on'); }
+}
+async function setPlay(on) {
+  playing = on && !!take; $('#btnPlay').classList.toggle('on', playing);
+  if (playing && !state.mon) { state.mon = 1; $('#btnMon').classList.add('on'); save(); await startMon(); }
+  if (monNode) monNode.port.postMessage({ type: 'play', on: playing });
+  if (playing) { lcd('PLAYING YOUR TAKE · TURN KNOBS TO COMPARE', false, true); log('play take on'); } else { flashLcd('PLAY OFF · BACK TO LIVE MIC'); log('play take off'); }
 }
 async function stopMon() {
   if (monStream) { monStream.getTracks().forEach(t => t.stop()); monStream = null; }
@@ -851,10 +862,21 @@ async function boot() {
   // REC: 10 s of what goes INTO the strip (left) and what the cable GETS (right), as a WAV Claude can listen to
   $('#btnRec').onclick = () => {
     if (!running || !node || $('#btnRec').classList.contains('on')) return;
-    $('#btnRec').classList.add('on'); node.port.postMessage({ type: 'rec', seconds: 10 });
-    let left = 10; lcd(`RECORDING ${left} s · TALK NORMALLY`); log('REC start');
+    if (playing) setPlay(false);
+    $('#btnRec').classList.add('on'); node.port.postMessage({ type: 'rec', seconds: REC_SECS });
+    let left = REC_SECS; lcd(`RECORDING ${left} s · TALK NORMALLY`); log('REC start');
     clearInterval(recTimer); recTimer = setInterval(() => { left--; if (left > 0) lcd(`RECORDING ${left} s · TALK NORMALLY`, false, true); else clearInterval(recTimer); }, 1000);
   };
+  // PLAY: loop the take through the strip into your headphones, so you can turn knobs and compare
+  $('#btnPlay').onclick = () => { if (take) setPlay(!playing); };
+  $('#verLabel').onclick = async () => {
+    // tidy the markdown: drop the title, join wrapped lines, headings in bold
+    const raw = (await window.cs.changelog()).replace(/^# Changelog\s*/, '').replace(/\n {2,}/g, ' ');
+    $('#logText').innerHTML = raw.split('\n').map(l => l.startsWith('## ') ? '<b>' + l.slice(3).replace(/</g, '&lt;') + '</b>' : l.replace(/</g, '&lt;')).join('\n');
+    $('#logBox').hidden = false;
+  };
+  if (location.hash === '#shotlog') $('#verLabel').onclick();
+  $('#logClose').onclick = () => { $('#logBox').hidden = true; };
   // Health ticker: audio clock vs wall clock once a second; counts on the LCD while running
   setInterval(() => {
     if (!ctx || !running) { health.wall = 0; return; }

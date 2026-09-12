@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.6.0 — 2026-09-12 — record, play, compare
+- REC now records 15 seconds of your mic. PLAY loops that recording through the strip into your headphones
+  (MON turns on by itself). Turn any knob while it plays to compare settings. PLAY again = back to the live
+  mic. Callers never hear the loop.
+- Click the version number at the top to see what changed in every version.
+
 ## 2.5.1 — 2026-09-12 — slide the lines
 - IN meter is simpler: one GATE line (amber = open, red = closed) with a faint band under it where the gate
   lets go, and one COMP line. No more OPEN / CLOSE words.

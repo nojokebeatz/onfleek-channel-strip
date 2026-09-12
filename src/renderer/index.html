@@ -12,7 +12,7 @@
 
   <div class="rail-top" id="titlebar">
     <i class="screw"></i>
-    <div class="brand"><span class="logo">OnFleek</span><span class="model">CS-9000 · VOCAL CHANNEL STRIP</span><span class="ver" id="verLabel"></span></div>
+    <div class="brand"><span class="logo">OnFleek</span><span class="model">CS-9000 · VOCAL CHANNEL STRIP</span><span class="ver" id="verLabel" title="Click to see what changed in each version"></span></div>
     <div class="winbtns"><button class="upd" id="btnLog" title="Send the app's log to OnFleek so Claude can read it">SEND LOG</button><button class="upd" id="btnUpdate" title="Check for a new version"><i class="led green" id="ledUpd"></i><span id="btnUpdateText">UPDATE</span></button><button id="btnMin" title="Minimize">&#8211;</button><button id="btnClose" title="Close">&#215;</button></div>
     <i class="screw"></i>
   </div>
@@ -31,6 +31,13 @@
       <div class="pinbox-text">Give these settings a name. Use a name you already saved to replace it.</div>
       <input id="nameInput" type="text" maxlength="32" autocomplete="off" placeholder="My voice" class="nameinput">
       <div class="pinbox-btns"><button class="hintbtn" id="nameOk">SAVE</button><button class="tog wide" id="nameCancel">CANCEL</button></div>
+    </div>
+  </div>
+  <div id="logBox" class="pinbox" hidden>
+    <div class="pinbox-card logcard">
+      <div class="pinbox-title">WHAT CHANGED</div>
+      <pre id="logText" class="logtext"></pre>
+      <div class="pinbox-btns"><button class="tog wide" id="logClose">CLOSE</button></div>
     </div>
   </div>
   <div id="updateBar" hidden><span id="updateText">New version available</span><button id="updateBtn">GET IT</button></div>
@@ -65,7 +72,7 @@
 
       <section class="sec sec-out">
         <div class="sec-head"><span class="sec-title">OUTPUT</span>
-          <div class="sec-btns"><button class="tog" id="btnRec" data-lamp="#ff3b30" title="Record 10 seconds of what the cable gets, so Claude can hear the static">REC</button><span class="ledlabel"><i class="led amber" id="ledLim"></i></span><button class="tog" data-tog="limIn" data-lamp="#ffb02e" title="Safety limiter: nothing louder than -1 dB gets out">LIM</button></div>
+          <div class="sec-btns"><button class="tog" id="btnRec" data-lamp="#ff3b30" title="Record 15 seconds of your mic. Then PLAY loops it through the strip into your headphones so you can compare settings. SEND LOG also sends it to Claude.">REC</button><button class="tog" id="btnPlay" data-lamp="#4cff6a" disabled title="Play the last recording through the strip (headphones). Turn knobs while it plays.">PLAY</button><span class="ledlabel"><i class="led amber" id="ledLim"></i></span><button class="tog" data-tog="limIn" data-lamp="#ffb02e" title="Safety limiter: nothing louder than -1 dB gets out">LIM</button></div>
         </div>
         <div class="patchrow presetrow">
           <label class="patch"><span>PRESET</span><select id="selPreset"></select></label>

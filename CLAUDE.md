@@ -117,6 +117,11 @@ w/scale x h/scale so it always fills the viewport. Column min-widths must sum to
   canvas draws in 150x270 logical units, so pointer coords scale by `150 / rect.width` and `270 / rect.height`.
   `yToDb` round-trips every whole dB against `dbToY` (checked).
 
+- 2.6.0: REC = 15 s take (raw, pre-trim) kept in `take` (renderer) and pushed to the MONITOR worklet
+  (`take` / `play` messages); PLAY substitutes the take for the mic input in the monitor engine ONLY, so the
+  cable keeps the live mic. `startMon` re-sends the take. Version label click -> `changelog:get` IPC reads
+  CHANGELOG.md (now in the packaged `files`); `--shotlog` flag opens the box for screenshots.
+
 ## Traps
 - Chromium hides device names until the mic permission is granted once — `unlockLabels()` does that.
 - `AudioContext.setSinkId('')` = default output; `'default'` id must be mapped to `''`.
