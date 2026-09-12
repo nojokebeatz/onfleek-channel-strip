@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.3.1 — 2026-09-12
+- RANGE now defaults to FULL, so a closed gate means silence. Untouched old settings (20 or 40 dB) are
+  moved to FULL once, with a note on the screen. Turn RANGE down only if you want a softer gate.
+
 ## 2.3.0 — 2026-09-12
 - Gate bites harder: EXP mode is now a steep 1:4 slope (5 dB under the line = 15 dB cut) instead of 1:2.
 - RANGE goes to FULL (dead silent) instead of stopping at 60 dB. New-install default is 40 dB.

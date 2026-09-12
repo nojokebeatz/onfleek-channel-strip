@@ -17,7 +17,7 @@ const P = {
   hpf:         { min: 20, max: 500, def: 80, log: true, fmt: hz },
   lpf:         { min: 3000, max: 20000, def: 18000, log: true, fmt: hz },
   gateThresh:  { min: -70, max: 0, def: -45, fmt: v => v.toFixed(0) + ' dB' },
-  gateRange:   { min: 0, max: 80, def: 40, fmt: v => v >= 79 ? 'FULL' : '-' + v.toFixed(0) + ' dB' },
+  gateRange:   { min: 0, max: 80, def: 80, fmt: v => v >= 79 ? 'FULL' : '-' + v.toFixed(0) + ' dB' },
   gateAttack:  { min: 0.1, max: 100, def: 1, log: true, fmt: ms },
   gateHold:    { min: 1, max: 500, def: 50, log: true, fmt: ms },
   gateRelease: { min: 10, max: 3000, def: 150, log: true, fmt: ms },
@@ -58,7 +58,7 @@ const PRESETS = {
 };
 
 /* ---------- state ---------- */
-const state = { params: DEFAULT_PARAMS(), inputId: '', outputId: '', phonesId: '', mon: 0, nr: 0, wantDefault: 0, prevDefaultMic: '', logPin: '', preset: 'Voice – Natural' };
+const state = { params: DEFAULT_PARAMS(), inputId: '', outputId: '', phonesId: '', mon: 0, nr: 0, wantDefault: 0, prevDefaultMic: '', logPin: '', rangeMigrated: 0, preset: 'Voice – Natural' };
 let ctx = null, node = null, stream = null, running = false, version = '0.0.0';
 let monCtx = null, monNode = null, monStream = null, monGain = null, lastOuts = [], setupTimer = 0, defaults = null, prevDefault = '';
 let learning = false, runLcd = 'STANDBY', reconnectTimer = 0, lastIns = [];
@@ -616,6 +616,11 @@ async function boot() {
   const saved = await window.cs.loadState();
   if (saved && saved.params) { state.params = Object.assign(DEFAULT_PARAMS(), saved.params); state.inputId = saved.inputId || ''; state.phonesId = saved.phonesId || ''; state.mon = saved.mon ? 1 : 0; state.nr = saved.nr ? 1 : 0; state.logPin = saved.logPin || ''; state.wantDefault = saved.wantDefault ? 1 : 0; state.prevDefaultMic = saved.prevDefaultMic || ''; state.preset = saved.preset ?? 'Voice – Natural'; }
   state.params.mute = 0; // never start muted
+  // One-time fix-up: older versions shipped RANGE at 20 or 40 dB, which let a quiet copy of everything
+  // through a closed gate. Move untouched values to FULL (dead silent) and say so once.
+  let rangeNote = '';
+  if (saved && !saved.rangeMigrated && (state.params.gateRange === 20 || state.params.gateRange === 40)) { state.params.gateRange = 80; rangeNote = 'GATE RANGE MOVED TO FULL · CLOSED GATE = SILENCE'; }
+  state.rangeMigrated = 1;
   renderAll();
   // MUTE from the tray or the global Ctrl+Shift+M
   window.cs.onHotkey(k => { if (k === 'mute') { state.params.mute = state.params.mute ? 0 : 1; renderToggle('mute'); changed(true); flashLcd(state.params.mute ? 'MIC MUTED' : 'MIC LIVE', 1500); } });
@@ -726,6 +731,7 @@ async function boot() {
   requestAnimationFrame(loop);
   await unlockLabels(); await refreshDevices();
   await start();
+  if (rangeNote) { save(); flashLcd(rangeNote, 6000); log(rangeNote); }
   await refreshDefaults();
   // Take over again if you asked for that before (the app hands the old mic back on quit).
   if (state.wantDefault && cableOut() && defaults && !defaults.error) {

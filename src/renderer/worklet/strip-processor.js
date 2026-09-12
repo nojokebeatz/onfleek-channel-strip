@@ -44,7 +44,7 @@ class OnePoleHP { // 6 dB/oct high-pass; cascaded with a Q=1 biquad it gives the
 
 const DEFAULTS = {
   trim: 0, filtersIn: 1, hpf: 80, lpf: 18000,
-  gateIn: 1, gateExp: 1, gateThresh: -45, gateRange: 40, gateAttack: 1, gateHold: 50, gateRelease: 150,
+  gateIn: 1, gateExp: 1, gateThresh: -45, gateRange: 80, gateAttack: 1, gateHold: 50, gateRelease: 150,
   compIn: 1, compThresh: -18, compRatio: 3, compAttack: 10, compRelease: 150, compMakeup: 4, compMix: 100,
   eqIn: 1, hfFreq: 12000, hfGain: 1.5, hfBell: 0, hmfFreq: 3000, hmfGain: 1.5, hmfQ: 1,
   lmfFreq: 300, lmfGain: -1.5, lmfQ: 1, lfFreq: 100, lfGain: 1, lfBell: 0,
