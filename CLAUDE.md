@@ -113,6 +113,10 @@ w/scale x h/scale so it always fills the viewport. Column min-widths must sum to
 - Lamps: `setupLamps()` prepends `<i class="lamp">` to every `.tog`; GSAP (`vendor/gsap.min.js`, CSP-safe
   local copy) animates lamp/LED/press via a MutationObserver on `class`. Use `gsap.fromTo`, never `from`.
 
+- 2.5.1: IN-meter lines are draggable (`lineAt`/`yToDb` in app.js, pointer events on `#meters`); the
+  canvas draws in 150x270 logical units, so pointer coords scale by `150 / rect.width` and `270 / rect.height`.
+  `yToDb` round-trips every whole dB against `dbToY` (checked).
+
 ## Traps
 - Chromium hides device names until the mic permission is granted once — `unlockLabels()` does that.
 - `AudioContext.setSinkId('')` = default output; `'default'` id must be mapped to `''`.

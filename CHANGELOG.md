@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.5.1 — 2026-09-12 — slide the lines
+- IN meter is simpler: one GATE line (amber = open, red = closed) with a faint band under it where the gate
+  lets go, and one COMP line. No more OPEN / CLOSE words.
+- Drag the GATE or COMP line up or down on the meter to set its threshold. The knob turns with it and shows
+  the number while you drag.
+
 ## 2.5.0 — 2026-09-12 — honest meters, static hunt, bigger lamps
 - GATE marker is now exact. The old line sat half a step too high on the IN meter. The IN meter now shows
   an OPEN line (threshold), a CLOSE line 4 dB under it (the gate closes there, so words do not stutter),

@@ -488,6 +488,37 @@ function segColor(d, lit) {
 }
 const TARGET_LO = -20, TARGET_HI = -6;   // where speech peaks should land for Zoom / Webex
 const MT = 26, MH = 220, SH = MH / SEGS;
+let mHover = null, mDrag = null;   // which IN-meter line the mouse is over / pulling
+function yToDb(y) { // inverse of dbToY, whole dB
+  const k = clamp(Math.floor((MT + MH - y) / SH), 0, SEGS - 1);
+  const lo = segDb(k), hi = k + 1 < SEGS ? segDb(k + 1) : 0, f = (MT + MH - k * SH - y) / SH;
+  return Math.round(clamp(lo + f * (hi - lo), -60, 0));
+}
+function lineAt(e) { // which threshold line is under the pointer (IN column only)
+  const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) * (150 / r.width), y = (e.clientY - r.top) * (270 / r.height);
+  if (x < 4 || x > 52) return null;
+  const pp = state.params, cands = [];
+  if (pp.gateIn && !pp.bypass) cands.push(['gateThresh', Math.abs(y - dbToY(pp.gateThresh))]);
+  if (pp.compIn && !pp.bypass) cands.push(['compThresh', Math.abs(y - dbToY(pp.compThresh))]);
+  cands.sort((a, b) => a[1] - b[1]);
+  return cands.length && cands[0][1] < 7 ? cands[0][0] : null;
+}
+cv.addEventListener('pointermove', e => {
+  if (mDrag) {
+    const r = cv.getBoundingClientRect(), y = (e.clientY - r.top) * (270 / r.height), spec = P[mDrag];
+    const v = clamp(yToDb(y), spec.min, spec.max);
+    if (v !== state.params[mDrag]) { state.params[mDrag] = v; renderKnob(mDrag); changed(); }
+    return;
+  }
+  mHover = lineAt(e); cv.style.cursor = mHover ? 'ns-resize' : '';
+});
+cv.addEventListener('pointerdown', e => {
+  const id = lineAt(e); if (!id) return;
+  mDrag = id; cv.setPointerCapture(e.pointerId); e.preventDefault();
+  const k = knobEls[id]; if (k && window.gsap) { k.el.classList.add('active'); gsap.fromTo(k.el, { scale: 1 }, { scale: 1.08, duration: 0.15, ease: 'power2.out' }); }
+});
+const endDrag = () => { if (!mDrag) return; const k = knobEls[mDrag]; if (k) { k.el.classList.remove('active'); if (window.gsap) gsap.to(k.el, { scale: 1, duration: 0.2 }); } mDrag = null; };
+cv.addEventListener('pointerup', endDrag); cv.addEventListener('pointercancel', endDrag); cv.addEventListener('pointerleave', () => { if (!mDrag) { mHover = null; cv.style.cursor = ''; } });
 // Continuous dB -> pixel. y(d) is the exact edge where a segment starts to light for level d, so a marker at
 // THRESHOLD sits precisely where the bars cross it (the old code drew markers half a segment too high).
 function dbToY(d) {
@@ -507,9 +538,9 @@ function drawMark(x, m) {
     g.closePath(); g.fill();
   }
   if (m.label) {
-    const ty = m.below ? yy + 10 : yy - 4;
-    g.fillStyle = 'rgba(0,0,0,.78)'; g.fillRect(x - 1, ty - 7, 24, 9);
-    g.fillStyle = m.color; g.font = '800 7px Bahnschrift, "Arial Narrow", sans-serif'; g.textAlign = 'center'; g.fillText(m.label, x + 11, ty);
+    const ty = m.below ? yy + 10 : yy - 4, w = m.hot ? 30 : 24, tx = x + 11 - w / 2;
+    g.fillStyle = m.hot ? m.color : 'rgba(0,0,0,.8)'; g.fillRect(tx, ty - 7, w, 9);
+    g.fillStyle = m.hot ? '#000' : m.color; g.font = '800 7px Bahnschrift, "Arial Narrow", sans-serif'; g.textAlign = 'center'; g.fillText(m.label, x + 11, ty);
   }
 }
 function drawPointer(x, db, color) { // what the gate detector sees right now: a small pointer on the column's right edge
@@ -591,13 +622,14 @@ function loop(t) {
   // pointer showing the level the gate detector actually sees right now. Everything is drawn from the same numbers
   // the audio engine uses, so what you see is what it does.
   const pp = state.params, inMarks = [];
+  // Two draggable lines: GATE (amber = open, red = closed) with a faint band under it where the gate lets go,
+  // and COMP (cream). Grab a line and slide it; the matching knob turns with it.
   if (pp.gateIn && !pp.bypass) {
     const T = pp.gateThresh, open = meter.gateOpen && running;
-    inMarks.push({ band: [T - GATE_HYST, T], bandColor: open ? 'rgba(255,176,46,.14)' : 'rgba(255,90,78,.12)' });
-    inMarks.push({ db: T, color: open ? 'rgba(255,176,46,.55)' : '#ff5a4e', label: 'OPEN', width: 2, dash: [3, 2] });
-    inMarks.push({ db: T - GATE_HYST, color: open ? '#ffb02e' : 'rgba(255,176,46,.45)', label: 'CLOSE', width: 1, dash: [2, 2], below: true, arrow: false });
+    inMarks.push({ band: [T - GATE_HYST, T], bandColor: open ? 'rgba(255,176,46,.12)' : 'rgba(255,90,78,.12)' });
+    inMarks.push({ db: T, color: open ? '#ffb02e' : '#ff5a4e', label: mDrag === 'gateThresh' ? T + ' dB' : 'GATE', width: 2, hot: mHover === 'gateThresh' || mDrag === 'gateThresh' });
   }
-  if (pp.compIn && !pp.bypass) inMarks.push({ db: pp.compThresh, color: 'rgba(228,223,208,.85)', label: 'COMP', width: 1, dash: [1, 3], side: 'right' });
+  if (pp.compIn && !pp.bypass) inMarks.push({ db: pp.compThresh, color: '#e4dfd0', label: mDrag === 'compThresh' ? pp.compThresh + ' dB' : 'COMP', width: 1, dash: [3, 2], side: 'right', below: true, hot: mHover === 'compThresh' || mDrag === 'compThresh' });
   const gateOnNow = running && pp.gateIn && !pp.bypass;
   drawColumn(18, disp.in, disp.inHold, 'IN', false, inMarks, gateOnNow ? meter.gateLvl : undefined, meter.gateOpen ? '#ffffff' : '#ff8a80');
   drawGR(60, disp.gr); drawColumn(114, disp.out, disp.outHold, 'OUT', true); drawScale();
