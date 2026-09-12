@@ -66,6 +66,14 @@ with the window not shown. Mute never persists across launches (reset to 0 on lo
 - NAME IT renames Capture "CABLE Output"→"Virtual Mic Out" AND Render "CABLE Input"→"Virtual Mic Feed"
   (`mic:rename` takes a flow arg). `CABLE_RX` must keep matching "virtual mic feed".
 
+## 2.1.0 notes
+- De-esser = bandpass detector at deFreq (Q 2.5) → gain-reduction (max 12 dB) subtracted as `x -= k*bp(x)`.
+  `deThr = -10 - deAmt*0.5` dBFS. Meter field `de`.
+- Verdict (`updateVerdict`) tracks speech peaks only while the gate is open and out > -40 dBFS.
+- Mic safety: renderer calls `rememberDefault(prev, want)`; main's `before-quit` runs the PS script
+  `set <prev>` then quits (guarded by `restoredOnQuit`). Boot re-applies `want` if `state.wantDefault`.
+- NR = `noiseSuppression: !!state.nr` in `micConstraints()`; toggling restarts both engines.
+
 ## Traps
 - Chromium hides device names until the mic permission is granted once — `unlockLabels()` does that.
 - `AudioContext.setSinkId('')` = default output; `'default'` id must be mapped to `''`.

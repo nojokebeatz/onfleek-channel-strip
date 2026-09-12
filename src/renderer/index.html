@@ -45,7 +45,7 @@
 
       <section class="sec sec-input">
         <div class="sec-head"><span class="sec-title">INPUT · FILTERS</span>
-          <div class="sec-btns"><button class="tog" data-tog="filtersIn">IN</button></div>
+          <div class="sec-btns"><button class="tog wide" id="btnLevel" data-lamp="#c8ff5a" title="Talk normally for 5 seconds: TRIM sets itself">SET LEVEL</button><button class="tog" id="btnNr" data-lamp="#4cff6a" title="Noise cleanup for fans, hum and hiss (Windows audio engine)">NR</button><button class="tog" data-tog="filtersIn">IN</button></div>
         </div>
         <div class="knobrow">
           <div class="knob c-red" data-knob="trim" data-label="TRIM"></div>
@@ -91,6 +91,18 @@
           <div class="knob c-cream" data-knob="compMakeup" data-label="MAKE UP"></div>
           <div class="knob c-cream" data-knob="compMix" data-label="MIX"></div>
           <div class="slot"><span class="tiny">SOFT KNEE</span><span class="tiny">6 dB</span></div>
+        </div>
+      </section>
+
+      <section class="sec sec-de">
+        <div class="sec-head"><span class="sec-title">DE-ESSER</span>
+          <div class="sec-btns"><button class="tog" data-tog="deIn">IN</button></div>
+        </div>
+        <div class="knobrow">
+          <div class="knob c-cream" data-knob="deFreq" data-label="FREQ"></div>
+          <div class="knob c-cream" data-knob="deAmt" data-label="AMOUNT"></div>
+          <div class="slot ledstack"><span class="ledlabel"><i class="led amber" id="ledDe"></i>SSS</span><span class="tiny">TAMES SHARP S SOUNDS</span></div>
+          <div class="slot"><span class="grbig" id="deReadout">0.0</span><span class="tiny">dB</span></div>
         </div>
       </section>
 
@@ -144,6 +156,7 @@
       <div class="meters">
         <div class="clips"><span class="ledlabel"><i class="led red" id="clipIn"></i>CLIP</span><span class="ledlabel"><i class="led red" id="clipOut"></i>CLIP</span></div>
         <canvas id="meters" width="150" height="270"></canvas>
+        <div class="verdict" id="verdict"><span class="lcdsmall" id="verdictText">LEVEL: —</span></div>
       </div>
       <div class="faderbox">
         <div class="faderval" id="faderVal">0.0 dB</div>

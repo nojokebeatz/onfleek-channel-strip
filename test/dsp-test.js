@@ -7,7 +7,7 @@ class AudioWorkletProcessor { constructor() { this.port = { postMessage() {}, on
 new Function('AudioWorkletProcessor', 'registerProcessor', 'sampleRate', src)(AudioWorkletProcessor, (n, c) => { Proc = c; }, SR);
 
 const FLAT = { trim: 0, filtersIn: 0, gateIn: 0, compIn: 0, eqIn: 0, bypass: 0, fader: 0, compMakeup: 0,
-  hfGain: 0, hmfGain: 0, lmfGain: 0, lfGain: 0, limIn: 0, mute: 0 };
+  hfGain: 0, hmfGain: 0, lmfGain: 0, lfGain: 0, limIn: 0, mute: 0, deIn: 0 };
 const dB = (g) => 20 * Math.log10(g);
 
 function run(params, freq, levelDb, seconds = 1.2) {
@@ -52,5 +52,8 @@ check('limiter holds +6 dBFS input at -1 dBFS', run({ limIn: 1 }, 1000, 6), -1, 
 check('limiter leaves -6 alone', run({ limIn: 1 }, 1000, -6), -6, 0.1);
 const mu = run({ mute: 1 }, 1000, -6);
 console.log(`${mu < -80 ? 'PASS' : 'FAIL'}  mute silences: ${mu.toFixed(1)} dB (want < -80)`); if (mu >= -80) fails++;
+check('de-esser pulls a 7 kHz hiss down ~12 dB', run({ deIn: 1, deFreq: 7000, deAmt: 80 }, 7000, -6), -18, 1.5);
+check('de-esser leaves 1 kHz voice alone', run({ deIn: 1, deFreq: 7000, deAmt: 80 }, 1000, -6), -6, 0.5);
+check('de-esser at AMOUNT 0 ignores quiet hiss', run({ deIn: 1, deFreq: 7000, deAmt: 0 }, 7000, -20), -20, 0.3);
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASS');
 process.exit(fails ? 1 : 0);

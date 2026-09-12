@@ -135,6 +135,14 @@ const getDefaults = async () => {
 ipcMain.handle('audio:defaults', getDefaults);
 // Dev helper: --selftest runs the packaged PowerShell path and prints the result, then quits.
 if (process.argv.includes('--selftest')) app.whenReady().then(async () => { process.stdout.write('SELFTEST ' + JSON.stringify(await getDefaults()) + '\n'); app.exit(0); });
+// Mic safety: on Quit, hand Windows' default mic back to the real mic so nothing goes silent without us.
+let defaultMemo = { prev: '', want: '' }, restoredOnQuit = false;
+ipcMain.handle('audio:remember', (e, prev, want) => { defaultMemo = { prev: String(prev || ''), want: String(want || '') }; });
+app.on('before-quit', (e) => {
+  if (restoredOnQuit || !defaultMemo.prev || !defaultMemo.want) return;
+  restoredOnQuit = true; e.preventDefault();
+  runPSOut(['-File', defaultsScript(), 'set', defaultMemo.prev]).catch(() => {}).finally(() => app.quit());
+});
 ipcMain.handle('audio:setDefault', async (e, name) => {
   try { return await runPSOut(['-File', defaultsScript(), 'set', String(name)]); }
   catch (e) { return 'FAILED ' + String(e.message || e).slice(0, 120); }

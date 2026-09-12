@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.1.0 — 2026-09-12
+- DE-ESSER section (after the compressor): FREQ + AMOUNT knobs, SSS lamp and dB readout. Tames sharp "s".
+- SET LEVEL button: talk normally for 5 s and TRIM moves so your loudest bits land near -10 dBFS.
+- NR button: Windows' own noise cleanup on the mic capture (fans, hum, hiss). Reopens the mic.
+- Level verdict under the meters: LEVEL: GOOD / A BIT QUIET / TOO QUIET / A BIT HOT / TOO LOUD, plus a
+  green target zone (-20 to -6 dBFS) drawn on the OUT meter.
+- Mic safety: after MAKE DEFAULT, quitting the app hands the Windows default mic back to your real mic,
+  and the next start takes it over again. Nothing goes silent while the app is closed.
+
 ## 2.0.0 — 2026-09-12 — the one-stop shop (Voicemeeter replacement)
 - SETUP checklist with three lamps: CABLE installed, NAME (Windows calls it "Virtual Mic Out"),
   ZOOM (Windows default mic = Virtual Mic Out, so Zoom / Webex / Teams need no clicks). Each row has

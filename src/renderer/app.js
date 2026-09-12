@@ -34,9 +34,11 @@ const P = {
   lmfQ:        { min: 0.4, max: 4, def: 1, log: true, fmt: v => 'Q ' + v.toFixed(2) },
   lfFreq:      { min: 30, max: 450, def: 100, log: true, fmt: hz },
   lfGain:      { min: -15, max: 15, def: 1, fmt: dbs, center: true },
-  phones:      { min: -40, max: 6, def: 0, fmt: v => v <= -39.5 ? '-∞ dB' : dbs(v), center: true }
+  phones:      { min: -40, max: 6, def: 0, fmt: v => v <= -39.5 ? '-∞ dB' : dbs(v), center: true },
+  deFreq:      { min: 2500, max: 12000, def: 6500, log: true, fmt: hz },
+  deAmt:       { min: 0, max: 100, def: 40, fmt: v => v.toFixed(0) + ' %' }
 };
-const TOG = { filtersIn: 1, gateIn: 1, gateExp: 1, compIn: 1, eqIn: 1, hfBell: 0, lfBell: 0, bypass: 0, mute: 0, limIn: 1 };
+const TOG = { filtersIn: 1, gateIn: 1, gateExp: 1, compIn: 1, eqIn: 1, hfBell: 0, lfBell: 0, bypass: 0, mute: 0, limIn: 1, deIn: 1 };
 
 const DEFAULT_PARAMS = () => {
   const o = {}; for (const k in P) o[k] = P[k].def; Object.assign(o, TOG); o.fader = 0; return o;
@@ -53,11 +55,12 @@ const PRESETS = {
 };
 
 /* ---------- state ---------- */
-const state = { params: DEFAULT_PARAMS(), inputId: '', outputId: '', phonesId: '', mon: 0, preset: 'Voice – Natural' };
+const state = { params: DEFAULT_PARAMS(), inputId: '', outputId: '', phonesId: '', mon: 0, nr: 0, wantDefault: 0, prevDefaultMic: '', preset: 'Voice – Natural' };
 let ctx = null, node = null, stream = null, running = false, version = '0.0.0';
 let monCtx = null, monNode = null, monStream = null, monGain = null, lastOuts = [], setupTimer = 0, defaults = null, prevDefault = '';
 let learning = false, runLcd = 'STANDBY', reconnectTimer = 0, lastIns = [];
-const meter = { inPk: 0, outPk: 0, gr: 0, gateRed: 0, gateOpen: false, lim: 0 };
+const meter = { inPk: 0, outPk: 0, gr: 0, gateRed: 0, gateOpen: false, lim: 0, de: 0 };
+let leveling = false;
 
 const toNorm = (spec, v) => spec.log ? Math.log(v / spec.min) / Math.log(spec.max / spec.min) : (v - spec.min) / (spec.max - spec.min);
 const fromNorm = (spec, n) => { n = clamp(n, 0, 1); return spec.log ? spec.min * Math.pow(spec.max / spec.min, n) : spec.min + (spec.max - spec.min) * n; };
@@ -261,7 +264,7 @@ async function applyMonSink() {
   try { await monCtx.setSinkId(id); } catch (e) { flashLcd('HEADPHONES DEVICE FAILED'); }
 }
 function micConstraints() {
-  const c = { audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 } };
+  const c = { audio: { echoCancellation: false, noiseSuppression: !!state.nr, autoGainControl: false, channelCount: 1 } };
   if (state.inputId && state.inputId !== 'default') c.audio.deviceId = { exact: state.inputId };
   return c;
 }
@@ -337,7 +340,7 @@ function flashLcd(text, ms = 3000) { lcd(text); setTimeout(() => { if (running &
 const cv = $('#meters'), g = cv.getContext('2d');
 const DPR = Math.min(2, window.devicePixelRatio || 1);
 cv.width = 150 * DPR; cv.height = 270 * DPR; g.scale(DPR, DPR);
-const disp = { in: -90, out: -90, gr: 0, inHold: -90, outHold: -90, inHoldT: 0, outHoldT: 0, clipIn: 0, clipOut: 0 };
+const disp = { in: -90, out: -90, gr: 0, inHold: -90, outHold: -90, inHoldT: 0, outHoldT: 0, clipIn: 0, clipOut: 0, de: 0 };
 const SEGS = 30;
 function segDb(k) { // segment k (0 = bottom) lights at this dB
   if (k < 10) return -60 + k * 3; if (k < 20) return -30 + (k - 10) * 1.8; return -12 + (k - 20) * 1.2;
@@ -347,9 +350,17 @@ function segColor(d, lit) {
   if (d >= -18) return lit ? '#ffc23a' : '#3a3012';
   return lit ? '#4cff6a' : '#123a1a';
 }
-function drawColumn(x, level, hold, label) {
+const TARGET_LO = -20, TARGET_HI = -6;   // where speech peaks should land for Zoom / Webex
+function segY(d) { let k = 0; for (let i = 0; i < SEGS; i++) if (d >= segDb(i)) k = i; return 26 + 220 - (k + 1) * (220 / SEGS) + 1; }
+function drawColumn(x, level, hold, label, target) {
   const top = 26, h = 220, sh = h / SEGS;
   g.fillStyle = '#0b0c0d'; g.fillRect(x - 4, top - 4, 30, h + 8);
+  if (target) { // green bracket = the good zone
+    const y1 = segY(TARGET_HI), y2 = segY(TARGET_LO) + sh - 2;
+    g.fillStyle = 'rgba(76,255,106,.10)'; g.fillRect(x - 4, y1, 30, y2 - y1);
+    g.strokeStyle = 'rgba(76,255,106,.55)'; g.lineWidth = 1; g.beginPath();
+    g.moveTo(x - 3.5, y1 + .5); g.lineTo(x - 3.5, y2 - .5); g.moveTo(x + 25.5, y1 + .5); g.lineTo(x + 25.5, y2 - .5); g.stroke();
+  }
   for (let k = 0; k < SEGS; k++) {
     const d = segDb(k), lit = level >= d, y = top + h - (k + 1) * sh + 1;
     g.fillStyle = segColor(d, lit);
@@ -388,6 +399,23 @@ function drawScale() {
   g.font = '600 6.5px Bahnschrift, "Arial Narrow", sans-serif'; g.textAlign = 'center'; g.fillStyle = '#6b6a64';
   g.fillText('dBFS', 47, 262); g.fillText('dB', 91, 262); g.fillText('dBFS', 105, 262);
 }
+/* Level verdict: watch the loudest bits of the last few seconds of speech and say GOOD / TOO QUIET / TOO LOUD. */
+const verdict = { peak: -90, talkT: 0, lastText: '' };
+function updateVerdict(outDb, dt) {
+  const el = $('#verdictText');
+  const talking = running && !state.params.mute && meter.gateOpen && outDb > -40;
+  if (talking) { verdict.talkT = 3; if (outDb > verdict.peak) verdict.peak = outDb; else verdict.peak -= 2 * dt; }
+  else { verdict.talkT -= dt; }
+  let text = 'LEVEL: —', cls = '';
+  if (!running) { text = 'LEVEL: —'; }
+  else if (verdict.talkT <= 0) { text = 'LEVEL: TALK TO CHECK'; verdict.peak = -90; }
+  else if (disp.clipOut > 0 || verdict.peak > -2) { text = 'TOO LOUD · LOWER FADER'; cls = 'loud'; }
+  else if (verdict.peak > TARGET_HI + 1) { text = 'A BIT HOT · LOWER FADER'; cls = 'loud'; }
+  else if (verdict.peak < TARGET_LO - 4) { text = 'TOO QUIET · RAISE TRIM'; cls = 'quiet'; }
+  else if (verdict.peak < TARGET_LO) { text = 'A BIT QUIET'; cls = 'quiet'; }
+  else { text = 'LEVEL: GOOD'; cls = 'good'; }
+  if (text !== verdict.lastText) { verdict.lastText = text; el.textContent = text; el.className = 'lcdsmall ' + cls; }
+}
 let lastT = performance.now();
 function loop(t) {
   const dt = Math.min(0.1, (t - lastT) / 1000); lastT = t;
@@ -401,12 +429,16 @@ function loop(t) {
   if (meter.outPk >= 0.99) disp.clipOut = 2; else disp.clipOut -= dt;
   $('#clipIn').classList.toggle('on', disp.clipIn > 0); $('#clipOut').classList.toggle('on', disp.clipOut > 0);
   g.clearRect(0, 0, 150, 270);
-  drawColumn(18, disp.in, disp.inHold, 'IN'); drawGR(60, disp.gr); drawColumn(114, disp.out, disp.outHold, 'OUT'); drawScale();
+  drawColumn(18, disp.in, disp.inHold, 'IN'); drawGR(60, disp.gr); drawColumn(114, disp.out, disp.outHold, 'OUT', true); drawScale();
   $('#grReadout').textContent = disp.gr.toFixed(1);
   const gateOn = running && state.params.gateIn && !state.params.bypass;
   $('#ledGateOpen').classList.toggle('on', gateOn && meter.gateOpen);
   $('#ledGateRed').classList.toggle('on', gateOn && meter.gateRed > 0.5);
   $('#ledLim').classList.toggle('on', running && !!state.params.limIn && !state.params.bypass && meter.lim > 0.3);
+  disp.de += (meter.de - disp.de) * (meter.de > disp.de ? 0.6 : 0.15);
+  $('#ledDe').classList.toggle('on', running && !!state.params.deIn && !state.params.bypass && meter.de > 1);
+  $('#deReadout').textContent = disp.de.toFixed(1);
+  updateVerdict(outDb, dt);
   requestAnimationFrame(loop);
 }
 
@@ -541,7 +573,7 @@ async function boot() {
   version = await window.cs.version(); $('#verLabel').textContent = 'v' + version;
   $$('[data-knob]').forEach(buildKnob); $$('[data-tog]').forEach(buildToggle); buildFader(); buildPresets();
   const saved = await window.cs.loadState();
-  if (saved && saved.params) { state.params = Object.assign(DEFAULT_PARAMS(), saved.params); state.inputId = saved.inputId || ''; state.phonesId = saved.phonesId || ''; state.mon = saved.mon ? 1 : 0; state.preset = saved.preset ?? 'Voice – Natural'; }
+  if (saved && saved.params) { state.params = Object.assign(DEFAULT_PARAMS(), saved.params); state.inputId = saved.inputId || ''; state.phonesId = saved.phonesId || ''; state.mon = saved.mon ? 1 : 0; state.nr = saved.nr ? 1 : 0; state.wantDefault = saved.wantDefault ? 1 : 0; state.prevDefaultMic = saved.prevDefaultMic || ''; state.preset = saved.preset ?? 'Voice – Natural'; }
   state.params.mute = 0; // never start muted
   renderAll();
   // MUTE from the tray or the global Ctrl+Shift+M
@@ -575,6 +607,24 @@ async function boot() {
     } catch (e) { lcd('RENAME FAILED: ' + (e.message || e).toString().slice(0, 60), true); }
     renderSetup();
   };
+  // SET LEVEL: talk normally for 5 s, then TRIM moves so your loudest bits land near -10 dBFS
+  $('#btnLevel').onclick = () => {
+    if (!running || leveling || learning) return;
+    leveling = true; let maxPk = 0, left = 5.0; $('#btnLevel').classList.add('on');
+    const t = setInterval(() => {
+      maxPk = Math.max(maxPk, meter.inPk); left -= 0.1; lcd(`SETTING LEVEL · TALK NORMALLY ${Math.max(0, left).toFixed(1)} s`);
+      if (left <= 0) {
+        clearInterval(t); leveling = false; $('#btnLevel').classList.remove('on');
+        if (maxPk < 0.002) { flashLcd('HEARD NOTHING · IS THE MIC ON?', 3000); return; }
+        const trim = clamp(Math.round(state.params.trim + (-10 - dB(maxPk))), P.trim.min, P.trim.max);
+        state.params.trim = trim; renderKnob('trim'); changed(true);
+        flashLcd(`TRIM SET TO ${trim > 0 ? '+' : ''}${trim} dB`, 3000);
+      }
+    }, 100);
+  };
+  // NR: Windows' own noise cleanup on the mic (needs the mic reopened)
+  $('#btnNr').classList.toggle('on', !!state.nr);
+  $('#btnNr').onclick = async () => { state.nr = state.nr ? 0 : 1; $('#btnNr').classList.toggle('on', !!state.nr); save(); if (running) { await restart(); flashLcd(state.nr ? 'NOISE CLEANUP ON' : 'NOISE CLEANUP OFF', 2000); } };
   // BOOT: start with Windows, hidden in the tray
   $('#btnBoot').classList.toggle('on', !!(await window.cs.getAutostart()));
   $('#btnBoot').onclick = async () => {
@@ -607,10 +657,15 @@ async function boot() {
     const cab = cableOut(); if (!cab) return;
     const want = micSideRenamed() ? MIC_NAME : otherAppsMic(cab.label);
     $('#ckDefault').classList.add('busy'); lcd(`TELLING WINDOWS: DEFAULT MIC = \u201c${want}\u201d\u2026`);
-    prevDefault = defaults && defaults.communications || '';
+    const before = defaults && defaults.communications || '';
     const r = await window.cs.audioSetDefault(want);
     await refreshDefaults();
-    if (/^SET /.test(r)) flashLcd('DONE \u00b7 ZOOM / WEBEX NOW USE THE STRIP BY DEFAULT', 4000);
+    if (/^SET /.test(r)) {
+      // Remember: your real mic comes back when this app quits, and the strip takes over again on start.
+      if (before && before !== want) state.prevDefaultMic = before;
+      state.wantDefault = 1; save(); window.cs.rememberDefault(state.prevDefaultMic, want);
+      flashLcd('DONE \u00b7 ZOOM / WEBEX NOW USE THE STRIP BY DEFAULT', 4000);
+    }
     else lcd(/NOTFOUND/.test(r) ? `WINDOWS CANNOT SEE \u201c${want}\u201d YET \u00b7 RESTART THE PC` : 'COULD NOT SET DEFAULT: ' + String(r).slice(0, 50), true);
   };
   navigator.mediaDevices.addEventListener('devicechange', () => { refreshDevices(); clearTimeout(setupTimer); setupTimer = setTimeout(refreshDefaults, 1500); });
@@ -618,7 +673,14 @@ async function boot() {
   requestAnimationFrame(loop);
   await unlockLabels(); await refreshDevices();
   await start();
-  refreshDefaults();
+  await refreshDefaults();
+  // Take over again if you asked for that before (the app hands the old mic back on quit).
+  if (state.wantDefault && cableOut() && defaults && !defaults.error) {
+    const want = micSideRenamed() ? MIC_NAME : otherAppsMic(cableOut().label);
+    const all = [defaults.console, defaults.multimedia, defaults.communications];
+    window.cs.rememberDefault(state.prevDefaultMic, want);
+    if (!all.every(n => (n || '') === want)) { const r = await window.cs.audioSetDefault(want); if (/^SET /.test(r)) await refreshDefaults(); }
+  }
   setupUpdates();
 }
 boot();

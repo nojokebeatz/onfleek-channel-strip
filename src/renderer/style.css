@@ -194,3 +194,11 @@ select:focus{outline:none;border-color:#6b5a2a}
 .fcap::after{content:"";position:absolute;inset:8px 6px;border-radius:3px;background:repeating-linear-gradient(180deg,rgba(255,255,255,.05) 0 2px,transparent 2px 5px)}
 .scribble{margin-top:10px;width:120px;height:26px;border-radius:2px;background:linear-gradient(#f2eee0,#dcd7c4);box-shadow:inset 0 1px 2px rgba(0,0,0,.35),0 1px 0 rgba(255,255,255,.06);
   display:flex;align-items:center;justify-content:center;font:800 13px "Segoe Print","Comic Sans MS",cursive;color:#20222a;letter-spacing:2px;transform:rotate(-.6deg)}
+
+/* ---------- level verdict ---------- */
+.verdict{margin-top:4px}
+.lcdsmall{display:inline-block;min-width:150px;height:18px;line-height:16px;text-align:center;border:1px solid #000;border-radius:3px;background:linear-gradient(#170f04,#0d0803);color:#8a7a55;font:700 8.5px var(--font);letter-spacing:1.2px;
+  box-shadow:inset 0 1px 4px rgba(0,0,0,.9);transition:color .2s}
+.lcdsmall.good{color:#5dff7a;text-shadow:0 0 6px rgba(93,255,122,.6)}
+.lcdsmall.quiet{color:#ffb347;text-shadow:0 0 6px rgba(255,179,71,.6)}
+.lcdsmall.loud{color:#ff5a4e;text-shadow:0 0 6px rgba(255,90,78,.6)}

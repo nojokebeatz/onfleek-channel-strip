@@ -16,6 +16,7 @@ class Biquad {
   }
   lowpass(f, Q, sr) { const w = 2 * Math.PI * f / sr, c = Math.cos(w), a = Math.sin(w) / (2 * Q); this.set((1 - c) / 2, 1 - c, (1 - c) / 2, 1 + a, -2 * c, 1 - a); }
   highpass(f, Q, sr) { const w = 2 * Math.PI * f / sr, c = Math.cos(w), a = Math.sin(w) / (2 * Q); this.set((1 + c) / 2, -(1 + c), (1 + c) / 2, 1 + a, -2 * c, 1 - a); }
+  bandpass(f, Q, sr) { const w = 2 * Math.PI * f / sr, c = Math.cos(w), a = Math.sin(w) / (2 * Q); this.set(a, 0, -a, 1 + a, -2 * c, 1 - a); }
   peaking(f, Q, gdb, sr) {
     const A = Math.pow(10, gdb / 40), w = 2 * Math.PI * f / sr, c = Math.cos(w), a = Math.sin(w) / (2 * Q);
     this.set(1 + a * A, -2 * c, 1 - a * A, 1 + a / A, -2 * c, 1 - a / A);
@@ -47,7 +48,8 @@ const DEFAULTS = {
   compIn: 1, compThresh: -18, compRatio: 3, compAttack: 10, compRelease: 150, compMakeup: 4, compMix: 100,
   eqIn: 1, hfFreq: 12000, hfGain: 1.5, hfBell: 0, hmfFreq: 3000, hmfGain: 1.5, hmfQ: 1,
   lmfFreq: 300, lmfGain: -1.5, lmfQ: 1, lfFreq: 100, lfGain: 1, lfBell: 0,
-  fader: 0, bypass: 0, mute: 0, limIn: 1
+  fader: 0, bypass: 0, mute: 0, limIn: 1,
+  deIn: 1, deFreq: 6500, deAmt: 40
 };
 
 class StripProcessor extends AudioWorkletProcessor {
@@ -60,6 +62,7 @@ class StripProcessor extends AudioWorkletProcessor {
     this.compGr = 0; this.compEnv = 0;
     this.trimG = 1; this.makeupG = 1; this.faderG = 1; this.mixW = 1;
     this.muteG = 1; this.limG = 1; this.limRedMax = 0; this.dl = new Float32Array(256); this.dlPos = 0;
+    this.deBp = new Biquad(); this.deEnv = 0; this.deGr = 0; this.deRedMax = 0;
     this.dn = 1e-18;
     this.pkIn = 0; this.pkOut = 0; this.grMax = 0; this.gateRedMax = 0; this.count = 0;
     this.port.onmessage = (e) => {
@@ -85,6 +88,10 @@ class StripProcessor extends AudioWorkletProcessor {
     this.mixT = p.compMix / 100;
     this.sm = TC(8, sr); // gain-change smoothing (anti-zipper)
     this.muteT = p.mute ? 0 : 1;
+    // De-esser: listen to a narrow band around deFreq; when it pokes above the threshold, pull that band down.
+    this.deBp.bandpass(p.deFreq, 2.5, sr);
+    this.deThr = -10 - p.deAmt * 0.5;               // AMOUNT 0 % = -10 dBFS (barely), 100 % = -60 dBFS (always)
+    this.deEnvAtk = TC(0.3, sr); this.deEnvRel = TC(30, sr); this.deAtk = TC(0.5, sr); this.deRel = TC(60, sr);
     this.limN = Math.min(255, Math.max(1, Math.round(0.001 * sr)));   // 1 ms look-ahead
     this.limAtk = TC(0.15, sr); this.limRel = TC(80, sr); this.limCeil = LIN(-1);
   }
@@ -130,6 +137,15 @@ class StripProcessor extends AudioWorkletProcessor {
           x = dry * (1 - this.mixW) + wet * this.mixW;
           if (this.compGr > this.grMax) this.grMax = this.compGr;
         } else { this.compGr += (0 - this.compGr) * this.cRel; }
+        if (p.deIn) {
+          const bp = this.deBp.process(x), a = Math.abs(bp);
+          this.deEnv += (a > this.deEnv ? this.deEnvAtk : this.deEnvRel) * (a - this.deEnv);
+          const over = DB(this.deEnv + 1e-9) - this.deThr;
+          const want = over > 0 ? Math.min(12, over * 0.75) : 0;
+          this.deGr += (want > this.deGr ? this.deAtk : this.deRel) * (want - this.deGr);
+          x -= (1 - LIN(-this.deGr)) * bp;
+          if (this.deGr > this.deRedMax) this.deRedMax = this.deGr;
+        } else { this.deGr = 0; }
         if (p.eqIn) { x = this.eqLF.process(x); x = this.eqLMF.process(x); x = this.eqHMF.process(x); x = this.eqHF.process(x); }
         this.faderG += (this.faderT - this.faderG) * sm; x *= this.faderG;
         if (p.limIn) { // 1 ms look-ahead brick-wall limiter, ceiling -1 dBFS
@@ -148,8 +164,8 @@ class StripProcessor extends AudioWorkletProcessor {
     }
     this.count += n;
     if (this.count >= 1024) {
-      this.port.postMessage({ type: 'meter', inPk: this.pkIn, outPk: this.pkOut, gr: this.grMax, gateRed: this.gateRedMax, gateOpen: this.gateOpen, lim: this.limRedMax });
-      this.count = 0; this.pkIn = this.pkOut = this.grMax = this.gateRedMax = this.limRedMax = 0;
+      this.port.postMessage({ type: 'meter', inPk: this.pkIn, outPk: this.pkOut, gr: this.grMax, gateRed: this.gateRedMax, gateOpen: this.gateOpen, lim: this.limRedMax, de: this.deRedMax });
+      this.count = 0; this.pkIn = this.pkOut = this.grMax = this.gateRedMax = this.limRedMax = this.deRedMax = 0;
     }
     return true;
   }

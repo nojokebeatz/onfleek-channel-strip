@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('cs', {
   renameMic: (from, to, flow) => ipcRenderer.invoke('mic:rename', from, to, flow),
   audioDefaults: () => ipcRenderer.invoke('audio:defaults'),
   audioSetDefault: (name) => ipcRenderer.invoke('audio:setDefault', name),
+  rememberDefault: (prev, want) => ipcRenderer.invoke('audio:remember', prev, want),
   getAutostart: () => ipcRenderer.invoke('autostart:get'),
   setAutostart: (on) => ipcRenderer.invoke('autostart:set', on),
   onCableProgress: (cb) => ipcRenderer.on('cable:progress', (e, s) => cb(s)),
