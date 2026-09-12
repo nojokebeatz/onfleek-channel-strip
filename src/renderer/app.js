@@ -609,7 +609,7 @@ async function boot() {
       const ok = /RENAMED [1-9]/.test(r);
       await refreshDevices(); await refreshDefaults();
       if (ok) flashLcd(`DONE \u00b7 WINDOWS NOW CALLS IT \u201c${MIC_NAME.toUpperCase()}\u201d`, 4000);
-      else lcd(`RENAME: \u201c${from}\u201d NOT FOUND IN WINDOWS`, true);
+      else { const seen = (String(r).match(/SEEN: (.*)/) || [])[1] || ''; lcd(`WINDOWS HAS NO \u201c${from}\u201d \u00b7 IT LISTS: ${seen || 'nothing'} \u00b7 USE INSTALL CABLE`, true); }
     } catch (e) { lcd('RENAME FAILED: ' + (e.message || e).toString().slice(0, 60), true); }
     renderSetup();
   };

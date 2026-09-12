@@ -52,11 +52,12 @@ namespace OnFleekAudio {
 $desc = '{a45c254e-df1c-4efd-8020-67d146a850e0},2'
 $fn   = '{a45c254e-df1c-4efd-8020-67d146a850e0},14'
 $root = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Capture'
+function Plain([string]$s) { if (-not $s) { return '' }; if ($s.StartsWith('@')) { $i = $s.LastIndexOf(';'); if ($i -ge 0) { $s = $s.Substring($i + 1) } }; return $s.Trim() }
 function NameOf([string]$id) {
   if (-not $id) { return '' }
   $g = $id -replace '^\{0\.0\.1\.00000000\}\.', ''
   $p = Join-Path (Join-Path $root $g) 'Properties'
-  if (Test-Path $p) { $v = Get-ItemProperty $p; if ($v.$desc) { return [string]$v.$desc } }
+  if (Test-Path $p) { $v = Get-ItemProperty $p; if ($v.$desc) { return Plain([string]$v.$desc) } }
   return $id
 }
 if ($Mode -eq 'get') {
@@ -70,7 +71,8 @@ if ($Mode -eq 'set') {
     $p = Join-Path $k.PSPath 'Properties'; if (-not (Test-Path $p)) { continue }
     $v = Get-ItemProperty $p; $state = (Get-ItemProperty $k.PSPath).DeviceState
     if ($state -ne 1) { continue }   # 1 = active
-    if (([string]$v.$desc) -eq $Name -or ([string]$v.$fn) -like "$Name (*") { $hit = '{0.0.1.00000000}.' + $k.PSChildName; break }
+    $d = Plain([string]$v.$desc); $f = Plain([string]$v.$fn)
+    if ($d -eq $Name -or $f -like "$Name (*" -or $d -like "$Name (*") { $hit = '{0.0.1.00000000}.' + $k.PSChildName; break }
   }
   if (-not $hit) { Write-Output "NOTFOUND $Name"; exit 2 }
   foreach ($r in 0, 1, 2) { $hr = [OnFleekAudio.Api]::SetDefault($hit, $r); if ($hr -ne 0) { Write-Output ("FAILED role $r hr=0x{0:X8}" -f $hr); exit 3 } }

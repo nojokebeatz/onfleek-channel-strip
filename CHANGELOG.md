@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.2.2 — 2026-09-12
+- NAME IT and MAKE DEFAULT now understand coded device names ("@driver.inf,%key%;Name") that VB-Audio
+  drivers store in Windows. NAME IT on a Voicemeeter or VB-CABLE device no longer says "not found".
+- When a name really is missing, the LCD lists what Windows has and points to INSTALL CABLE.
+
 ## 2.2.1 — 2026-09-12
 - SETUP rows now speak in full sentences and wrap instead of being cut off.
 - Voicemeeter's cable no longer counts as "done": it only carries sound while Voicemeeter is open, so the

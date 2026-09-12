@@ -99,18 +99,22 @@ ipcMain.handle('mic:rename', async (e, from, to, flow) => {
 $desc='{a45c254e-df1c-4efd-8020-67d146a850e0},2'; $fn='{a45c254e-df1c-4efd-8020-67d146a850e0},14'; $adap='{b3f8fa53-0004-438e-9003-51a46e139bfc},6'
 $root='SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\MMDevices\\Audio\\${branch}'
 $rights=[System.Security.AccessControl.RegistryRights]::SetValue -bor [System.Security.AccessControl.RegistryRights]::QueryValues
-$cap=[Microsoft.Win32.Registry]::LocalMachine.OpenSubKey($root); $n=0
+function Plain([string]$s) { if (-not $s) { return '' }; if ($s.StartsWith('@')) { $i=$s.LastIndexOf(';'); if ($i -ge 0) { $s=$s.Substring($i+1) } }; return $s.Trim() }
+$cap=[Microsoft.Win32.Registry]::LocalMachine.OpenSubKey($root); $n=0; $seen=@()
 foreach ($k in $cap.GetSubKeyNames()) {
   $r=[Microsoft.Win32.Registry]::LocalMachine.OpenSubKey("$root\\$k\\Properties"); if (-not $r) { continue }
-  $d=[string]$r.GetValue($desc); $f=[string]$r.GetValue($fn); $a=[string]$r.GetValue($adap); $r.Close()
-  if ($d -eq '${esc(from)}' -or $f -like '${esc(from)} (*') {
+  $d=Plain([string]$r.GetValue($desc)); $f=Plain([string]$r.GetValue($fn)); $a=Plain([string]$r.GetValue($adap)); $r.Close()
+  $st=[Microsoft.Win32.Registry]::LocalMachine.OpenSubKey("$root\\$k"); $state=0; if ($st) { $state=[int]$st.GetValue('DeviceState',0); $st.Close() }
+  if ($state -eq 1 -and $d) { $seen += $d }
+  if ($d -eq '${esc(from)}' -or $f -like '${esc(from)} (*' -or $d -like '${esc(from)} (*') {
     $w=[Microsoft.Win32.Registry]::LocalMachine.OpenSubKey("$root\\$k\\Properties",[Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,$rights)
     $w.SetValue($desc,'${esc(to)}',[Microsoft.Win32.RegistryValueKind]::String)
     if ($f) { $full = if ($a) { '${esc(to)} (' + $a + ')' } else { '${esc(to)}' }; $w.SetValue($fn,$full,[Microsoft.Win32.RegistryValueKind]::String) }
     $w.Close(); $n++
   }
 }
-"RENAMED $n"`;
+"RENAMED $n"
+"SEEN: " + ($seen -join ' | ')`;
   const file = path.join(app.getPath('temp'), 'onfleek-rename-mic.ps1');
   fs.writeFileSync(file, script, 'utf8');
   return await runPSOut(['-File', file]);
