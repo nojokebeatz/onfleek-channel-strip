@@ -152,10 +152,10 @@ select:focus{outline:none;border-color:#6b5a2a}
 .hintbtn:disabled{opacity:.5;cursor:default}
 .hintbtn.small{height:26px;font-size:10px;padding:0 9px;letter-spacing:.8px}
 .checklist{display:flex;flex-direction:column;gap:5px;padding:6px 0 2px}
-.check{display:flex;align-items:center;gap:10px;height:34px;padding:0 10px;border-radius:3px;background:rgba(0,0,0,.22);box-shadow:inset 0 1px 2px rgba(0,0,0,.6),0 1px 0 rgba(255,255,255,.04)}
+.check{display:flex;align-items:center;gap:10px;min-height:36px;padding:5px 10px;border-radius:3px;background:rgba(0,0,0,.22);box-shadow:inset 0 1px 2px rgba(0,0,0,.6),0 1px 0 rgba(255,255,255,.04)}
 .check .led{flex:none}
 .check .ck-name{width:48px;flex:none;font:800 10.5px var(--font);letter-spacing:1.6px;color:var(--ink);text-shadow:0 -1px 0 rgba(0,0,0,.8)}
-.check .ck-text{flex:1;min-width:0;font:600 11.5px var(--font);letter-spacing:.3px;color:var(--ink-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.check .ck-text{flex:1;min-width:0;font:600 11.5px/1.25 var(--font);letter-spacing:.3px;color:var(--ink-dim);white-space:normal}
 .check.ok .ck-text{color:#bfe9c6}
 .check.ok .hintbtn{display:none}
 .check.busy .hintbtn{opacity:.5;pointer-events:none}

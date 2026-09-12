@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.1 — 2026-09-12
+- SETUP rows now speak in full sentences and wrap instead of being cut off.
+- Voicemeeter's cable no longer counts as "done": it only carries sound while Voicemeeter is open, so the
+  row stays amber and INSTALL CABLE stays available for the simple VB-CABLE.
+- ZOOM row is now APPS; TO ZOOM lamp is now TO APPS (Meet, Zoom, Webex all work the same way).
+
 ## 2.2.0 — 2026-09-12 — desktop layout
 - New side-by-side layout: five columns (SETUP+OUTPUT, INPUT+GATE, COMPRESSOR+DE-ESSER, EQUALIZER,
   METERS+FADER) fill the whole window. No more black borders. Built for a PC screen, not phones.

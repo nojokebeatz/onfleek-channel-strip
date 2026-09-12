@@ -200,26 +200,28 @@ function setCheck(id, ok, text) {
 function renderSetup() {
   const cab = cableOut();
   // 1. CABLE
-  if (cab) setCheck('ckCable', true, /voicemeeter/i.test(cab.label) ? 'Using Voicemeeter\u2019s cable (VB-CABLE is simpler)' : 'VB-CABLE installed');
-  else setCheck('ckCable', false, 'No virtual cable yet');
+  const vm = !!cab && /voicemeeter/i.test(cab.label);
+  if (cab && !vm) setCheck('ckCable', true, 'VB-CABLE installed. This is the pretend mic that carries your cleaned-up voice.');
+  else if (vm) setCheck('ckCable', false, 'Using Voicemeeter’s cable for now. It only carries sound while Voicemeeter is open. Press INSTALL CABLE for the simple one that always works.');
+  else setCheck('ckCable', false, 'No pretend mic yet. Press INSTALL CABLE (one time, then restart the PC).');
   $('#cableHint').hidden = !!cab;
   // 2. NAME
   const from = cab ? otherAppsMic(cab.label) : '';
   const renamed = micSideRenamed();
-  if (!cab) setCheck('ckName', false, 'Waiting for the cable');
-  else if (renamed) setCheck('ckName', true, `Shows up in Windows as \u201c${MIC_NAME}\u201d`);
-  else setCheck('ckName', false, `Windows still calls it \u201c${from}\u201d`);
+  if (!cab) setCheck('ckName', false, 'Waiting for the cable (row above).');
+  else if (renamed) setCheck('ckName', true, `Apps now see it as “${MIC_NAME}”.`);
+  else setCheck('ckName', false, `Apps see it as “${from}”. Press NAME IT to call it “${MIC_NAME}”.`);
   $('#btnName').dataset.from = from; $('#btnName').disabled = !cab;
   // 3. ZOOM (Windows default mic)
   const want = renamed ? MIC_NAME : from;
-  if (!cab) setCheck('ckDefault', false, 'Waiting for the cable');
-  else if (!defaults) setCheck('ckDefault', false, 'Checking Windows\u2026');
+  if (!cab) setCheck('ckDefault', false, 'Waiting for the cable (top row).');
+  else if (!defaults) setCheck('ckDefault', false, 'Checking Windows…');
   else if (defaults.error) setCheck('ckDefault', false, 'Could not read the Windows default mic');
   else {
     const all = [defaults.console, defaults.multimedia, defaults.communications];
     const isUs = want && all.every(n => (n || '') === want);
-    if (isUs) setCheck('ckDefault', true, `Windows default mic = \u201c${want}\u201d \u00b7 Zoom / Webex just work`);
-    else setCheck('ckDefault', false, `Windows default mic = \u201c${defaults.communications || defaults.console || 'none'}\u201d`);
+    if (isUs) setCheck('ckDefault', true, `Windows default mic = “${want}”. Meet / Zoom / Webex use it on their own.`);
+    else setCheck('ckDefault', false, `Windows default mic is still “${defaults.communications || defaults.console || 'none'}”. Press MAKE DEFAULT so Meet / Zoom pick the strip by themselves.`);
   }
   $('#btnDefault').disabled = !cab;
   // TO ZOOM lamp + name in the OUTPUT section
@@ -668,7 +670,7 @@ async function boot() {
       // Remember: your real mic comes back when this app quits, and the strip takes over again on start.
       if (before && before !== want) state.prevDefaultMic = before;
       state.wantDefault = 1; save(); window.cs.rememberDefault(state.prevDefaultMic, want);
-      flashLcd('DONE \u00b7 ZOOM / WEBEX NOW USE THE STRIP BY DEFAULT', 4000);
+      flashLcd('DONE · MEET / ZOOM / WEBEX NOW USE THE STRIP BY DEFAULT', 4000);
     }
     else lcd(/NOTFOUND/.test(r) ? `WINDOWS CANNOT SEE \u201c${want}\u201d YET \u00b7 RESTART THE PC` : 'COULD NOT SET DEFAULT: ' + String(r).slice(0, 50), true);
   };
