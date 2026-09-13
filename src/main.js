@@ -327,7 +327,7 @@ let bigBounds = null;
 ipcMain.handle('win:compact', (e, on) => {
   if (!win) return;
   if (on) {
-    bigBounds = win.getBounds(); win.setMinimumSize(420, 150); win.setSize(620, 150); win.setAlwaysOnTop(true, 'floating');
+    bigBounds = win.getBounds(); win.setMinimumSize(420, 290); win.setSize(620, 290); win.setAlwaysOnTop(true, 'floating');
   } else {
     win.setAlwaysOnTop(false); win.setMinimumSize(1000, 560);
     const b = bigBounds || savedBounds() || { width: 1560, height: 800 }; win.setSize(b.width, b.height);

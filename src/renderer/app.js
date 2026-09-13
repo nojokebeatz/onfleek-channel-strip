@@ -98,11 +98,12 @@ async function finishRecording(d) {
 }
 /* ---------- COMPACT mode ---------- */
 const cCv = $('#cMeters'), cG = cCv.getContext('2d');
+const cEq = $('#cEq'), cEqG = cEq.getContext('2d'), CEQW = 600, CEQH = 110;
 async function setCompact(on) {
   state.compact = !!on; save();
   $('#strip').hidden = state.compact; $('#compact').hidden = !state.compact;
   await window.cs.compact(state.compact);
-  if (!state.compact) { fit(); renderAll(); } else { syncCompact(); }
+  if (!state.compact) { fit(); renderAll(); } else { syncCompact(); drawCurve(); }
   log('compact ' + (state.compact ? 'on' : 'off'));
 }
 function syncCompact() {
@@ -116,15 +117,28 @@ function drawCompactMeters() {
   const W = cCv.width, H = cCv.height, pad = 46, barW = W - pad - 8;
   cG.clearRect(0, 0, W, H); cG.font = '800 11px Bahnschrift, "Arial Narrow", sans-serif'; cG.textAlign = 'left';
   const rows = [['IN', disp.in, disp.inHold, false], ['OUT', disp.out, disp.outHold, true]];
+  const xOf = (d) => pad + barW * clamp((d + 60) / 60, 0, 1);
   rows.forEach(([name, lvl, hold, target], i) => {
-    const y = 6 + i * 26, h = 18;
+    const y = 16 + i * 26, h = 18;
     cG.fillStyle = '#c9c7bc'; cG.fillText(name, 4, y + 14);
     cG.fillStyle = '#151618'; cG.fillRect(pad, y, barW, h);
     if (target) { const x1 = pad + barW * (TARGET_LO + 60) / 60, x2 = pad + barW * (TARGET_HI + 60) / 60; cG.fillStyle = 'rgba(76,255,106,.12)'; cG.fillRect(x1, y, x2 - x1, h); }
     const segs = 40, sw = barW / segs;
     for (let k = 0; k < segs; k++) { const d = -60 + k * 1.5, lit = lvl >= d; cG.fillStyle = segColor(d, lit); cG.fillRect(pad + k * sw + 1, y + 2, sw - 2, h - 4); }
     if (hold > -60) { const x = pad + barW * clamp((hold + 60) / 60, 0, 1); cG.fillStyle = '#fff'; cG.fillRect(x - 1, y, 2, h); }
-    if (name === 'IN' && state.params.gateIn && !state.params.bypass) { const x = pad + barW * clamp((state.params.gateThresh + 60) / 60, 0, 1); cG.fillStyle = meter.gateOpen && running ? '#ffb02e' : '#ff5a4e'; cG.fillRect(x - 1, y - 2, 2, h + 4); }
+    if (name === 'IN') { // GATE and COMP lines with their names above the bar (same numbers the engine uses)
+      const marks = [];
+      if (state.params.gateIn && !state.params.bypass) marks.push(['GATE', xOf(state.params.gateThresh), meter.gateOpen && running ? '#ffb02e' : '#ff5a4e']);
+      if (state.params.compIn && !state.params.bypass) marks.push(['COMP', xOf(state.params.compThresh), '#e4dfd0']);
+      if (marks.length === 2 && Math.abs(marks[0][1] - marks[1][1]) < 34) { marks[0][3] = -18; marks[1][3] = 18; }   // names too close: push apart
+      marks.forEach(([nm, x, col, shift]) => {
+        cG.fillStyle = col; cG.fillRect(x - 1, y - 3, 2, h + 6);
+        cG.beginPath(); cG.moveTo(x, y - 3); cG.lineTo(x - 4, y - 8); cG.lineTo(x + 4, y - 8); cG.closePath(); cG.fill();
+        cG.font = '800 8px Bahnschrift, "Arial Narrow", sans-serif'; cG.textAlign = 'center';
+        const tx = clamp(x + (shift || 0), pad + 12, W - 16); cG.fillStyle = 'rgba(0,0,0,.8)'; cG.fillRect(tx - 13, 0, 26, 9); cG.fillStyle = col; cG.fillText(nm, tx, 8);
+      });
+      cG.font = '800 11px Bahnschrift, "Arial Narrow", sans-serif'; cG.textAlign = 'left';
+    }
   });
   cG.fillStyle = '#8f8d84'; cG.font = '600 9px Bahnschrift, "Arial Narrow", sans-serif'; cG.textAlign = 'center';
   [-60, -40, -30, -18, -12, -6, 0].forEach(d => cG.fillText(d === 0 ? '0' : String(-d), pad + barW * (d + 60) / 60, H - 1));
@@ -762,6 +776,7 @@ function loop(t) {
 const cvE = $('#eqCurve'), gE = cvE.getContext('2d');
 const EQW = 330, EQH = 80;
 cvE.width = EQW * DPR; cvE.height = EQH * DPR; gE.scale(DPR, DPR);
+cEq.width = CEQW * DPR; cEq.height = CEQH * DPR; cEqG.scale(DPR, DPR);
 function coefs(type, f, Q, g, sr) { // same RBJ math as the worklet, normalised by a0
   const A = Math.pow(10, g / 40), w = 2 * Math.PI * f / sr, c = Math.cos(w), s = Math.sin(w); let b0, b1, b2, a0, a1, a2;
   if (type === 'lowpass') { const a = s / (2 * Q); b0 = (1 - c) / 2; b1 = 1 - c; b2 = (1 - c) / 2; a0 = 1 + a; a1 = -2 * c; a2 = 1 - a; }
@@ -784,8 +799,9 @@ function onePoleHpDb(f, w, sr) {
   return 20 * Math.log10(k * Math.hypot(1 - cw, sw) / Math.hypot(1 - k * cw, k * sw) + 1e-20);
 }
 const fx = (f, W) => W * Math.log(f / 20) / Math.log(1000);
-function drawCurve() {
-  const p = state.params, sr = ctx ? ctx.sampleRate : 48000, W = EQW, H = EQH, RANGE = 18;
+let eqHot = null, eqDrag = null;   // which band dot the mouse is over / pulling
+function drawCurveOn(gE, W, H) {
+  const p = state.params, sr = ctx ? ctx.sampleRate : 48000, RANGE = 18;
   const active = !p.bypass && (p.eqIn || p.filtersIn), stages = [];
   if (!p.bypass && p.filtersIn) { stages.push(coefs('highpass', p.hpf, 1.0, 0, sr)); stages.push(coefs('lowpass', p.lpf, 0.7071, 0, sr)); }
   if (!p.bypass && p.eqIn) {
@@ -815,10 +831,55 @@ function drawCurve() {
   if (active) { gE.lineTo(W, H / 2); gE.lineTo(0, H / 2); gE.closePath(); gE.fillStyle = 'rgba(255,176,46,.10)'; gE.fill(); }
   if (!p.bypass && p.eqIn) { // a dot per band, in the band's knob colour, so you can see which knob made which bump
     [['lf', '#c8783c'], ['lmf', '#3f78ff'], ['hmf', '#4cff6a'], ['hf', '#ff5a4e']].forEach(([b, c]) => {
-      const x = fx(p[b + 'Freq'], W), y = clamp(H / 2 - p[b + 'Gain'] * (H / 2) / RANGE, 4, H - 4);
-      gE.beginPath(); gE.arc(x, y, 3.5, 0, Math.PI * 2); gE.fillStyle = c; gE.fill(); gE.strokeStyle = 'rgba(0,0,0,.8)'; gE.lineWidth = 1; gE.stroke();
+      const x = fx(p[b + 'Freq'], W), y = clamp(H / 2 - p[b + 'Gain'] * (H / 2) / RANGE, 4, H - 4), hot = eqHot === b || eqDrag === b;
+      const r = (H > 100 ? 5.5 : 4) * (hot ? 1.5 : 1);
+      if (hot) { gE.beginPath(); gE.arc(x, y, r + 4, 0, Math.PI * 2); gE.fillStyle = c.replace(')', ',.25)').replace('rgb', 'rgba').replace('#', ''); gE.fillStyle = 'rgba(255,255,255,.18)'; gE.fill(); }
+      gE.beginPath(); gE.arc(x, y, r, 0, Math.PI * 2); gE.fillStyle = c; gE.fill(); gE.strokeStyle = 'rgba(0,0,0,.8)'; gE.lineWidth = 1; gE.stroke();
+      if (hot) { gE.font = '800 9px Bahnschrift, "Arial Narrow", sans-serif'; gE.textAlign = 'center'; gE.fillStyle = '#fff';
+        const t = b.toUpperCase() + '  ' + hz(p[b + 'Freq']) + '  ' + dbs(p[b + 'Gain']); const ty = y < 16 ? y + 16 : y - 10;
+        gE.fillStyle = 'rgba(0,0,0,.8)'; gE.fillRect(clamp(x - 44, 0, W - 88), ty - 8, 88, 11); gE.fillStyle = c; gE.fillText(t, clamp(x, 44, W - 44), ty); }
     });
   }
+}
+function drawCurve() {
+  drawCurveOn(gE, EQW, EQH);
+  if (state.compact) drawCurveOn(cEqG, CEQW, CEQH);
+}
+/* Drag a band dot on the curve: left/right = FREQ, up/down = GAIN, mouse wheel = Q (where the band has one) */
+function makeEqEditable(canvas, W, H) {
+  const RANGE = 18, bands = ['lf', 'lmf', 'hmf', 'hf'];
+  const pos = (e) => { const r = canvas.getBoundingClientRect(); return { x: (e.clientX - r.left) * W / r.width, y: (e.clientY - r.top) * H / r.height }; };
+  const dotAt = (pt) => {
+    const p = state.params; if (p.bypass || !p.eqIn) return null; let best = null, bd = 12;
+    bands.forEach(b => { const x = fx(p[b + 'Freq'], W), y = clamp(H / 2 - p[b + 'Gain'] * (H / 2) / RANGE, 4, H - 4), d = Math.hypot(pt.x - x, pt.y - y); if (d < bd) { bd = d; best = b; } });
+    return best;
+  };
+  const setP = (id, v) => { const sp = P[id]; state.params[id] = clamp(v, sp.min, sp.max); renderKnob(id); };
+  canvas.addEventListener('pointerdown', e => {
+    const b = dotAt(pos(e)); if (!b) return; if (state.locked) { flashLcd('PANEL LOCKED', 800); return; }
+    eqDrag = b; canvas.setPointerCapture(e.pointerId); e.preventDefault(); canvas.style.cursor = 'grabbing'; drawCurve();
+  });
+  canvas.addEventListener('pointermove', e => {
+    const pt = pos(e);
+    if (eqDrag) {
+      const fine = e.shiftKey ? 0.25 : 1, p = state.params, b = eqDrag;
+      const fx0 = fx(p[b + 'Freq'], W), gy0 = H / 2 - p[b + 'Gain'] * (H / 2) / RANGE;
+      const nx = fx0 + (pt.x - fx0) * fine, ny = gy0 + (pt.y - gy0) * fine;
+      setP(b + 'Freq', 20 * Math.pow(1000, clamp(nx, 0, W) / W));
+      setP(b + 'Gain', Math.round(((H / 2 - ny) * RANGE / (H / 2)) * 2) / 2);
+      changed(); return;
+    }
+    const h = dotAt(pt); if (h !== eqHot) { eqHot = h; drawCurve(); } canvas.style.cursor = h ? 'grab' : '';
+  });
+  const end = () => { if (eqDrag) { eqDrag = null; drawCurve(); canvas.style.cursor = eqHot ? 'grab' : ''; } };
+  canvas.addEventListener('pointerup', end); canvas.addEventListener('pointercancel', end);
+  canvas.addEventListener('pointerleave', () => { if (!eqDrag && eqHot) { eqHot = null; drawCurve(); } });
+  canvas.addEventListener('wheel', e => {
+    const b = eqDrag || dotAt(pos(e)); if (!b || !P[b + 'Q']) return; e.preventDefault(); if (state.locked) return;
+    const id = b + 'Q', n = toNorm(P[id], state.params[id]) - Math.sign(e.deltaY) * 0.04; setP(id, fromNorm(P[id], n)); changed();
+  }, { passive: false });
+  canvas.addEventListener('dblclick', e => { const b = dotAt(pos(e)); if (!b || state.locked) return; setP(b + 'Gain', 0); changed(); });
+  canvas.title = 'Drag a dot: left/right = FREQ, up/down = GAIN. Mouse wheel on a dot = Q. Double-click = gain 0.';
 }
 
 /* ---------- scale to fit window ---------- */
@@ -969,6 +1030,7 @@ async function boot() {
   setupLamps();
   bootAnimation();
   // COMPACT view wiring
+  makeEqEditable(cvE, EQW, EQH); makeEqEditable(cEq, CEQW, CEQH);
   $('#btnCompact').onclick = () => setCompact(true); $('#cExpand').onclick = () => setCompact(false);
   $('#cMin').onclick = () => window.cs.minimize(); $('#cClose').onclick = () => window.cs.close();
   $('#cMute').onclick = () => togEls.mute.click(); $('#cBypass').onclick = () => togEls.bypass.click();

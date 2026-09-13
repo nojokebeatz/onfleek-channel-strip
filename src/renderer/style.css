@@ -284,7 +284,8 @@ select optgroup{color:#9a988f;font:700 11px var(--font);letter-spacing:1px;backg
 .c-win button:hover{filter:brightness(1.15)} .c-win #cClose:hover{color:#ff6b61}
 .c-body{flex:1;display:flex;flex-direction:column;gap:6px;padding:8px 12px 10px}
 .c-meters{flex:none;background:#0b0c0d;border-radius:4px;box-shadow:inset 0 1px 4px rgba(0,0,0,.9);padding:4px 6px}
-#cMeters{display:block;width:100%;height:56px}
+#cMeters{display:block;width:100%;height:68px}
+.c-eq{display:block;width:100%;height:110px;border-radius:4px;background:#0b0c0d;box-shadow:inset 0 1px 4px rgba(0,0,0,.9)}
 .c-btns{display:flex;align-items:center;gap:8px}
 .c-btns .tog{height:32px}
 .c-btns .tog .lamp{top:5px}

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.9.1 — 2026-09-13 — drag the EQ dots, compact gets EQ + gate/comp lines
+- The EQ curve is now hands-on: drag a colored dot left/right for FREQ and up/down for GAIN. Mouse wheel
+  on a dot changes Q (LMF and HMF). Double-click a dot sets its gain to 0. Hold Shift for fine moves.
+  The knobs turn with you. Works in the full panel and in COMPACT.
+- COMPACT now has the EQ curve too, and the IN meter shows the GATE and COMP lines with their names.
+
 ## 2.9.0 — 2026-09-13 — COMPACT mode, colored rail buttons
 - COMPACT button (top bar, or press C): the app shrinks to a small strip that stays on top of other windows,
   with IN / OUT meters, the gate line, MUTE, BYPASS, MON, LOCK and the preset picker. FULL brings the whole

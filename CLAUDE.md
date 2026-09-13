@@ -145,6 +145,10 @@ w/scale x h/scale so it always fills the viewport. Column min-widths must sum to
   shrinks the window to 620x150 always-on-top and restores `bigBounds`; `fit()` is a no-op while compact;
   `rememberBounds` ignores small bounds. `--shotcompact` flag for screenshots.
 
+- 2.9.1: `drawCurveOn(gE, W, H)` draws the EQ curve into any canvas (main 330x80, compact `#cEq` 600x110);
+  `makeEqEditable(canvas, W, H)` = dot drag (freq/gain), wheel (Q), dblclick (gain 0); `eqHot/eqDrag` drive the
+  bigger dot + readout. Compact window is 620x290 now. Canvas DPR setup must come AFTER `const DPR`.
+
 ## Traps
 - Chromium hides device names until the mic permission is granted once — `unlockLabels()` does that.
 - `AudioContext.setSinkId('')` = default output; `'default'` id must be mapped to `''`.
