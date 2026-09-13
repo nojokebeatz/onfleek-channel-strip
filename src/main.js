@@ -27,9 +27,21 @@ let win = null, tray = null, quitting = false, muted = false;
 const startHidden = process.argv.includes('--hidden');
 const statePath = () => path.join(app.getPath('userData'), 'state.json');
 
+const boundsPath = () => path.join(app.getPath('userData'), 'window.json');
+function savedBounds() {
+  try {
+    const b = JSON.parse(fs.readFileSync(boundsPath(), 'utf8'));
+    const { screen } = require('electron');
+    const ok = screen.getAllDisplays().some(d => b.x >= d.bounds.x - 50 && b.y >= d.bounds.y - 50 && b.x < d.bounds.x + d.bounds.width && b.y < d.bounds.y + d.bounds.height);
+    return ok && b.width >= 1000 && b.height >= 560 ? b : null;
+  } catch { return null; }
+}
+let boundsTimer = 0;
+function rememberBounds() { clearTimeout(boundsTimer); boundsTimer = setTimeout(() => { try { if (win && !win.isMinimized()) fs.writeFileSync(boundsPath(), JSON.stringify(win.getBounds())); } catch {} }, 500); }
 function createWindow() {
+  const b = savedBounds() || {};
   win = new BrowserWindow({
-    width: 1560, height: 800, minWidth: 1000, minHeight: 560, show: !startHidden,
+    width: b.width || 1560, height: b.height || 800, x: b.x, y: b.y, minWidth: 1000, minHeight: 560, show: !startHidden,
     frame: false, backgroundColor: '#121315', title: 'OnFleek Channel Strip',
     icon: path.join(__dirname, '..', 'build', 'icon.png'),
     webPreferences: {
@@ -38,6 +50,7 @@ function createWindow() {
     }
   });
   win.setMenuBarVisibility(false);
+  win.on('resize', rememberBounds); win.on('move', rememberBounds);
   win.on('close', (e) => { if (!quitting) { e.preventDefault(); win.hide(); } }); // X = hide to tray, keep processing
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'), process.argv.includes('--shotlog') ? { hash: 'shotlog' } : {});
 
@@ -76,6 +89,8 @@ function trayMenu() {
     { label: 'Mute mic   (Ctrl+Shift+M)', type: 'checkbox', checked: muted, click: () => win && win.webContents.send('hotkey', 'mute') },
     { label: 'Start with Windows', type: 'checkbox', checked: app.getLoginItemSettings().openAtLogin, click: (item) => setAutostart(item.checked) },
     { label: 'Show log file', click: () => shell.showItemInFolder(logPath()) },
+    { label: 'Open settings folder', click: () => shell.openPath(app.getPath('userData')) },
+    { label: 'Check for update', click: () => { showWin(); win && win.webContents.send('hotkey', 'update'); } },
     { type: 'separator' },
     { label: 'Quit', click: () => { quitting = true; app.quit(); } }
   ]);
@@ -300,4 +315,12 @@ ipcMain.handle('cable:install', async () => {
   return { ok: true };
 });
 ipcMain.handle('win:minimize', () => win && win.minimize());
+// Ctrl + / Ctrl - / Ctrl 0 : make the whole panel bigger or smaller by resizing the window (the panel scales to fit)
+ipcMain.handle('win:zoom', (e, f) => {
+  if (!win) return; const b = win.getBounds();
+  if (f === 0) { win.setSize(1560, 800); return; }
+  const w = Math.round(Math.max(1000, b.width * f)), h = Math.round(Math.max(560, b.height * f));
+  win.setSize(w, h);
+});
+ipcMain.handle('tray:icon', (e, dataUrl) => { try { if (tray) tray.setImage(dataUrl ? nativeImage.createFromDataURL(dataUrl).resize({ width: 16, height: 16 }) : nativeImage.createFromPath(path.join(__dirname, '..', 'build', 'icon.png')).resize({ width: 16, height: 16 })); } catch {} });
 ipcMain.handle('win:close', () => win && win.close());

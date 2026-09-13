@@ -1,5 +1,23 @@
 # Changelog
 
+## 2.8.0 — 2026-09-13 — twelve improvements
+1. The window can be any size and the whole panel scales with it. Bigger window = bigger text.
+2. The window remembers where you left it and how big it was.
+3. Ctrl + and Ctrl - (or Ctrl + mouse wheel) make the panel bigger or smaller. Ctrl 0 = normal.
+4. Double-click a knob's number to type the exact value.
+5. Double-click a section name (GATE, COMPRESSOR...) to reset just that section to the preset.
+6. COMPRESSOR AUTO button sets MAKE UP for you from THRESHOLD and RATIO. Turning MAKE UP takes over.
+7. DE-ESSER LISTEN button: hear only what the de-esser removes (headphones only). Turn AMOUNT until you
+   hear just the sharp S sounds.
+8. Silence watchdog: if the mic sends nothing for 30 seconds, the screen tells you to check the USB cable
+   or the mic's mute switch.
+9. FAST button in SETUP: smaller audio buffer for less delay. Off = SAFE, fewer dropouts. If you hear
+   crackle, leave it off.
+10. Tray menu: Open settings folder, Check for update.
+11. Tray icon turns red with an M while you are muted.
+12. LEVEL verdict now uses your average loudness (what callers really hear), not just the peaks, and shows
+    the number. Click a CLIP light to clear it; click the PEAK readout to reset the peak lines.
+
 ## 2.7.1 — 2026-09-12 — your presets are back
 - Bug: a saved preset (like "Icee") vanished from the PRESET list after a restart. It was still on disk;
   the list was built before your settings loaded. Fixed: the list refills after loading.

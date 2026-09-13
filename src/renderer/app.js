@@ -41,7 +41,7 @@ const P = {
   deFreq:      { min: 2500, max: 12000, def: 6500, log: true, fmt: hz },
   deAmt:       { min: 0, max: 100, def: 40, fmt: v => v.toFixed(0) + ' %' }
 };
-const TOG = { filtersIn: 1, gateIn: 1, gateExp: 1, compIn: 1, eqIn: 1, hfBell: 0, lfBell: 0, bypass: 0, mute: 0, limIn: 1, deIn: 1 };
+const TOG = { filtersIn: 1, gateIn: 1, gateExp: 1, compIn: 1, eqIn: 1, hfBell: 0, lfBell: 0, bypass: 0, mute: 0, limIn: 1, deIn: 1, deListen: 0, compAuto: 0 };
 
 const DEFAULT_PARAMS = () => {
   const o = {}; for (const k in P) o[k] = P[k].def; Object.assign(o, TOG); o.fader = 0; return o;
@@ -58,7 +58,7 @@ const PRESETS = {
 };
 
 /* ---------- state ---------- */
-const state = { params: DEFAULT_PARAMS(), inputId: '', outputId: '', phonesId: '', mon: 0, nr: 0, wantDefault: 0, prevDefaultMic: '', logPin: '', rangeMigrated: 0, userPresets: {}, preset: 'Voice – Natural' };
+const state = { params: DEFAULT_PARAMS(), inputId: '', outputId: '', phonesId: '', mon: 0, nr: 0, wantDefault: 0, prevDefaultMic: '', logPin: '', rangeMigrated: 0, userPresets: {}, preset: 'Voice – Natural', fast: 0, locked: false };
 let ctx = null, node = null, stream = null, running = false, version = '0.0.0';
 let monCtx = null, monNode = null, monStream = null, monGain = null, lastOuts = [], setupTimer = 0, defaults = null, prevDefault = '';
 let learning = false, runLcd = 'STANDBY', reconnectTimer = 0, lastIns = [], formats = null;
@@ -143,7 +143,7 @@ function buildKnob(el) {
   el.innerHTML = `<div class="ring">${ticksSVG(spec)}</div><div class="body"><div class="cap"><div class="ptr"></div></div></div><div class="lbl">${el.dataset.label}</div><div class="val"></div>`;
   const body = $('.body', el), cap = $('.cap', el), val = $('.val', el);
   knobEls[id] = { el, cap, val, spec };
-  const set = (v, fromUser) => { if (fromUser && state.locked) { flashLcd('PANEL LOCKED', 800); return; } state.params[id] = v; renderKnob(id); if (fromUser) changed(id === 'phones'); };
+  const set = (v, fromUser) => { if (fromUser && state.locked) { flashLcd('PANEL LOCKED', 800); return; } if (fromUser && id === 'compMakeup' && state.params.compAuto) { state.params.compAuto = 0; renderToggle('compAuto'); } state.params[id] = v; renderKnob(id); if (fromUser) changed(id === 'phones'); };
   let lastY = 0, dragging = false;
   body.addEventListener('pointerdown', e => { dragging = true; lastY = e.clientY; body.setPointerCapture(e.pointerId); el.classList.add('active'); e.preventDefault(); });
   body.addEventListener('pointermove', e => {
@@ -155,6 +155,15 @@ function buildKnob(el) {
   const end = e => { dragging = false; el.classList.remove('active'); };
   body.addEventListener('pointerup', end); body.addEventListener('pointercancel', end);
   body.addEventListener('dblclick', () => set(spec.def, true));
+  val.title = 'Double-click to type a number'; val.style.cursor = 'text';
+  val.addEventListener('dblclick', () => { // type the exact number
+    if (state.locked || $('input', val)) return;
+    const inp = document.createElement('input'); inp.type = 'text'; inp.className = 'typein'; inp.value = String(state.params[id]);
+    val.textContent = ''; val.appendChild(inp); inp.focus(); inp.select();
+    const done = (apply) => { const v = parseFloat(inp.value.replace(',', '.')); if (apply && !isNaN(v)) set(clamp(v, spec.min, spec.max), true); else renderKnob(id); };
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') done(true); else if (e.key === 'Escape') done(false); e.stopPropagation(); });
+    inp.addEventListener('blur', () => { if (inp.isConnected) done(true); });
+  });
   el.addEventListener('wheel', e => { e.preventDefault(); const n = toNorm(spec, state.params[id]) - Math.sign(e.deltaY) * (e.shiftKey ? 0.004 : 0.02); set(fromNorm(spec, n), true); }, { passive: false });
 }
 function renderKnob(id) {
@@ -176,7 +185,7 @@ function renderToggle(id) {
   togEls[id] && togEls[id].classList.toggle('on', !!state.params[id]);
   if (SEC_OF[id]) $(SEC_OF[id]).classList.toggle('off', !state.params[id]);
   if (id === 'bypass') $$('.sec-input,.sec-gate,.sec-comp,.sec-de,.sec-eq').forEach(e => e.classList.toggle('byp', !!state.params.bypass));
-  if (id === 'mute') { window.cs.muteState(!!state.params.mute); if (lastOuts) renderSetup(); }
+  if (id === 'mute') { window.cs.muteState(!!state.params.mute); if (window.cs.onTrayMute) window.cs.onTrayMute(!!state.params.mute); if (lastOuts) renderSetup(); }
 }
 
 /* ---------- fader ---------- */
@@ -238,8 +247,14 @@ function changed(keepPreset) {
   if (!sendPending) { sendPending = true; requestAnimationFrame(() => { sendPending = false; sendParams(); drawCurve(); }); }
   clearTimeout(saveTimer); saveTimer = setTimeout(save, 400);
 }
+function autoMakeup() { // AUTO: lift by about half of what the compressor takes off a loud word
+  const p = state.params; if (!p.compAuto || !p.compIn) return;
+  const v = clamp(Math.round(-p.compThresh * (1 - 1 / p.compRatio) * 0.5), P.compMakeup.min, P.compMakeup.max);
+  if (v !== p.compMakeup) { p.compMakeup = v; renderKnob('compMakeup'); }
+}
 function sendParams() {
-  if (node) node.port.postMessage({ type: 'params', p: state.params });
+  autoMakeup();
+  if (node) node.port.postMessage({ type: 'params', p: Object.assign({}, state.params, { deListen: 0 }) });   // callers never get LISTEN
   if (monNode) monNode.port.postMessage({ type: 'params', p: state.params });
   if (monGain) monGain.gain.setTargetAtTime(phonesGain(), monCtx.currentTime, 0.01);
 }
@@ -247,7 +262,7 @@ function save() { window.cs.saveState(state).catch(() => {}); }
 
 /* ---------- presets ---------- */
 // Presets: factory ones from PRESETS, plus your own saved under "MY PRESETS" (select value "u:<name>").
-const NOT_IN_PRESET = ['phones', 'mute', 'fader'];   // per-session things a preset should not drag along
+const NOT_IN_PRESET = ['phones', 'mute', 'fader', 'deListen'];   // per-session things a preset should not drag along
 const isUserPreset = (v) => typeof v === 'string' && v.startsWith('u:');
 const presetValid = (v) => (v in PRESETS) || (isUserPreset(v) && state.userPresets && (v.slice(2) in state.userPresets));
 function presetParams(v) { return v in PRESETS ? PRESETS[v] : (state.userPresets[v.slice(2)] || {}); }
@@ -459,7 +474,7 @@ async function start() {
   if (running) return;
   try {
     lcd('STARTING…');
-    ctx = new AudioContext({ latencyHint: 'playback' });   // roomier buffer to the cable = fewer dropouts
+    ctx = new AudioContext({ latencyHint: state.fast ? 'interactive' : 'playback' });   // SAFE = roomier buffer to the cable = fewer dropouts
     await ctx.audioWorklet.addModule('worklet/strip-processor.js');
     const constraints = micConstraints();
     try { stream = await navigator.mediaDevices.getUserMedia(constraints); }
@@ -630,20 +645,25 @@ function drawScale() {
   g.fillText('dBFS', 47, 262); g.fillText('dB', 91, 262); g.fillText('dBFS', 105, 262);
 }
 /* Level verdict: watch the loudest bits of the last few seconds of speech and say GOOD / TOO QUIET / TOO LOUD. */
-const verdict = { peak: -90, talkT: 0, lastText: '' };
+const verdict = { peak: -90, talkT: 0, lastText: '', avg: -60, quietT: 0, warned: false };
+const RMS_LO = -30, RMS_HI = -16;   // average speech loudness that lands well on Zoom / Meet (dBFS RMS)
 function updateVerdict(outDb, dt) {
   const el = $('#verdictText');
   const talking = running && !state.params.mute && meter.gateOpen && outDb > -40;
-  if (talking) { verdict.talkT = 3; if (outDb > verdict.peak) verdict.peak = outDb; else verdict.peak -= 2 * dt; }
+  const rmsDb = dB(meter.rmsOut || 0);
+  if (talking) { verdict.talkT = 3; if (outDb > verdict.peak) verdict.peak = outDb; else verdict.peak -= 2 * dt; verdict.avg += (rmsDb - verdict.avg) * Math.min(1, dt / 1.5); }
   else { verdict.talkT -= dt; }
+  // Silence watchdog: a mic that is plugged in but sends nothing for 30 s is usually a USB / mute-switch problem
+  if (running && dB(meter.inPk) < -70) { verdict.quietT += dt; if (verdict.quietT > 30 && !verdict.warned) { verdict.warned = true; flashLcd('NO SOUND FROM MIC FOR 30 s \u00b7 CHECK USB OR MUTE SWITCH', 6000); log('silence watchdog: no input for 30 s'); } }
+  else { verdict.quietT = 0; verdict.warned = false; }
   let text = 'LEVEL: —', cls = '';
   if (!running) { text = 'LEVEL: —'; }
-  else if (verdict.talkT <= 0) { text = 'LEVEL: TALK TO CHECK'; verdict.peak = -90; }
-  else if (disp.clipOut > 0 || verdict.peak > -2) { text = 'TOO LOUD · LOWER FADER'; cls = 'loud'; }
-  else if (verdict.peak > TARGET_HI + 1) { text = 'A BIT HOT · LOWER FADER'; cls = 'loud'; }
-  else if (verdict.peak < TARGET_LO - 4) { text = 'TOO QUIET · RAISE TRIM'; cls = 'quiet'; }
-  else if (verdict.peak < TARGET_LO) { text = 'A BIT QUIET'; cls = 'quiet'; }
-  else { text = 'LEVEL: GOOD'; cls = 'good'; }
+  else if (verdict.talkT <= 0) { text = 'LEVEL: TALK TO CHECK'; verdict.peak = -90; verdict.avg = -60; }
+  else if (disp.clipOut > 0 || verdict.peak > -2) { text = 'TOO LOUD \u00b7 LOWER FADER'; cls = 'loud'; }
+  else if (verdict.avg > RMS_HI + 2) { text = 'A BIT HOT \u00b7 LOWER FADER'; cls = 'loud'; }
+  else if (verdict.avg < RMS_LO - 4) { text = 'TOO QUIET \u00b7 RAISE TRIM'; cls = 'quiet'; }
+  else if (verdict.avg < RMS_LO) { text = 'A BIT QUIET'; cls = 'quiet'; }
+  else { text = 'LEVEL: GOOD \u00b7 AVG ' + verdict.avg.toFixed(0) + ' dB'; cls = 'good'; }
   if (text !== verdict.lastText) { verdict.lastText = text; el.textContent = text; el.className = 'lcdsmall ' + cls; }
 }
 let lastT = performance.now();
@@ -759,9 +779,9 @@ const currentScale = () => scaleNow;
 const NAT_W = 1560, NAT_H = 760;   // the layout is designed for this size; smaller windows zoom it down
 function fit() {
   const w = window.innerWidth, h = window.innerHeight;
-  scaleNow = Math.min(1, w / NAT_W, h / NAT_H);
+  scaleNow = Math.min(w / NAT_W, h / NAT_H);   // bigger window = bigger panel and text, smaller window = zoom down
   strip.style.width = (w / scaleNow) + 'px'; strip.style.height = (h / scaleNow) + 'px';
-  strip.style.transform = scaleNow < 1 ? `scale(${scaleNow})` : 'none';
+  strip.style.transform = Math.abs(scaleNow - 1) > 0.002 ? `scale(${scaleNow})` : 'none';
 }
 
 /* ---------- updates ---------- */
@@ -830,7 +850,7 @@ async function boot() {
   $$('[data-knob]').forEach(buildKnob); $$('[data-tog]').forEach(buildToggle); buildFader(); buildPresets();
   const saved = await window.cs.loadState();
   if (saved && !saved.params && saved.userPresets) state.userPresets = saved.userPresets;
-  if (saved && saved.params) { state.params = Object.assign(DEFAULT_PARAMS(), saved.params); state.inputId = saved.inputId || ''; state.phonesId = saved.phonesId || ''; state.mon = saved.mon ? 1 : 0; state.nr = saved.nr ? 1 : 0; state.logPin = saved.logPin || ''; state.userPresets = (saved.userPresets && typeof saved.userPresets === 'object') ? saved.userPresets : {}; state.wantDefault = saved.wantDefault ? 1 : 0; state.prevDefaultMic = saved.prevDefaultMic || ''; state.preset = saved.preset ?? 'Voice – Natural'; }
+  if (saved && saved.params) { state.params = Object.assign(DEFAULT_PARAMS(), saved.params); state.inputId = saved.inputId || ''; state.phonesId = saved.phonesId || ''; state.mon = saved.mon ? 1 : 0; state.nr = saved.nr ? 1 : 0; state.logPin = saved.logPin || ''; state.userPresets = (saved.userPresets && typeof saved.userPresets === 'object') ? saved.userPresets : {}; state.wantDefault = saved.wantDefault ? 1 : 0; state.fast = saved.fast ? 1 : 0; state.prevDefaultMic = saved.prevDefaultMic || ''; state.preset = saved.preset ?? 'Voice – Natural'; }
   state.params.mute = 0; // never start muted
   // One-time fix-up: older versions shipped RANGE at 20 or 40 dB, which let a quiet copy of everything
   // through a closed gate. Move untouched values to FULL (dead silent) and say so once.
@@ -839,7 +859,7 @@ async function boot() {
   state.rangeMigrated = 1;
   renderAll();
   // MUTE from the tray or the global Ctrl+Shift+M
-  window.cs.onHotkey(k => { if (k === 'mute') { state.params.mute = state.params.mute ? 0 : 1; renderToggle('mute'); changed(true); flashLcd(state.params.mute ? 'MIC MUTED' : 'MIC LIVE', 1500); } });
+  window.cs.onHotkey(k => { if (k === 'update') { $('#btnUpdate').click(); return; } if (k === 'mute') { state.params.mute = state.params.mute ? 0 : 1; renderToggle('mute'); changed(true); flashLcd(state.params.mute ? 'MIC MUTED' : 'MIC LIVE', 1500); } });
   // LEARN: 2 s of room noise -> gate threshold 8 dB above it
   $('#btnLearn').onclick = () => {
     if (!running || learning) return;
@@ -898,6 +918,33 @@ async function boot() {
   $('#btnMin').onclick = () => window.cs.minimize(); $('#btnClose').onclick = () => window.cs.close();
   setupLamps();
   bootAnimation();
+  // Double-click a section name: that section goes back to the current preset's settings
+  $$('.sec-title').forEach(t => { t.title = 'Double-click to reset this section to the preset'; t.style.cursor = 'pointer'; t.addEventListener('dblclick', () => {
+    if (state.locked) return;
+    const sec = t.closest('.sec'), base = Object.assign(DEFAULT_PARAMS(), presetParams(state.preset || 'Voice \u2013 Natural'));
+    let n = 0;
+    $$('[data-knob]', sec).forEach(k => { const id = k.dataset.knob; if (state.params[id] !== base[id]) { state.params[id] = base[id]; n++; } });
+    $$('[data-tog]', sec).forEach(b => { const id = b.dataset.tog; if (NOT_IN_PRESET.includes(id)) return; if (state.params[id] !== base[id]) { state.params[id] = base[id]; n++; } });
+    renderAll(); changed(true); flashLcd(t.textContent.trim() + ' RESET (' + n + ' CHANGE' + (n === 1 ? '' : 'S') + ')', 2000);
+  }); });
+  // Ctrl + / Ctrl - / Ctrl 0 : bigger, smaller, normal size
+  window.addEventListener('keydown', e => {
+    if (!e.ctrlKey) return;
+    if (e.key === '=' || e.key === '+') { e.preventDefault(); window.cs.zoom(1.1); }
+    else if (e.key === '-') { e.preventDefault(); window.cs.zoom(1 / 1.1); }
+    else if (e.key === '0') { e.preventDefault(); window.cs.zoom(0); }
+  });
+  window.addEventListener('wheel', e => { if (e.ctrlKey) { e.preventDefault(); window.cs.zoom(e.deltaY < 0 ? 1.05 : 1 / 1.05); } }, { passive: false });
+  // 11: click a CLIP light to clear it; click the PEAK readout to reset the peak-hold lines
+  $('#clipIn').parentElement.onclick = () => { disp.clipIn = 0; }; $('#clipOut').parentElement.onclick = () => { disp.clipOut = 0; };
+  $('#peaks').style.cursor = 'pointer'; $('#peaks').title = 'Click to reset the peak-hold lines';
+  $('#peaks').onclick = () => { disp.inHold = -90; disp.outHold = -90; disp.clipIn = 0; disp.clipOut = 0; };
+  // 8: FAST / SAFE buffer
+  $('#btnFast').classList.toggle('on', !!state.fast);
+  $('#btnFast').onclick = async () => { state.fast = state.fast ? 0 : 1; $('#btnFast').classList.toggle('on', !!state.fast); save(); flashLcd(state.fast ? 'FAST BUFFER \u00b7 LESS DELAY, MORE CRACKLE RISK' : 'SAFE BUFFER \u00b7 FEWER DROPOUTS', 3000); log('buffer mode ' + (state.fast ? 'fast' : 'safe')); if (running) { await stop(); await start(); } };
+  // 10: red tray icon while muted
+  const trayMuted = (() => { const c = document.createElement('canvas'); c.width = c.height = 32; const x = c.getContext('2d'); x.fillStyle = '#ff3b30'; x.beginPath(); x.arc(16, 16, 15, 0, Math.PI * 2); x.fill(); x.fillStyle = '#fff'; x.font = 'bold 20px Arial'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('M', 16, 17); return c.toDataURL(); })();
+  window.cs.onTrayMute = (m) => window.cs.trayIcon(m ? trayMuted : '');
   // A/B: two settings slots. Press A/B to jump between them and hear the difference (works great with PLAY).
   $('#btnAB').onclick = () => {
     const cur = JSON.stringify(state.params);

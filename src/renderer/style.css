@@ -243,3 +243,6 @@ select optgroup{color:#9a988f;font:700 11px var(--font);letter-spacing:1px;backg
 #shareLink{width:100%;box-sizing:border-box;font:12px Consolas,monospace}
 #shareCopied{color:var(--amber);min-height:14px;margin-top:8px}
 .built{margin-left:14px;font:800 10px var(--font);letter-spacing:2px;color:#ffb02e;text-shadow:0 0 6px rgba(255,176,46,.45);white-space:nowrap}
+
+.knob .val input.typein{width:64px;height:16px;padding:0 3px;border:1px solid var(--amber);border-radius:2px;background:#0b0c0d;color:#ffb02e;font:600 11px var(--mono);text-align:center;outline:none}
+.clips .ledlabel{cursor:pointer}

@@ -50,7 +50,7 @@ const DEFAULTS = {
   eqIn: 1, hfFreq: 12000, hfGain: 1.5, hfBell: 0, hmfFreq: 3000, hmfGain: 1.5, hmfQ: 1,
   lmfFreq: 300, lmfGain: -1.5, lmfQ: 1, lfFreq: 100, lfGain: 1, lfBell: 0,
   fader: 0, bypass: 0, mute: 0, limIn: 1,
-  deIn: 1, deFreq: 6500, deAmt: 40
+  deIn: 1, deFreq: 6500, deAmt: 40, deListen: 0, compAuto: 0
 };
 
 class StripProcessor extends AudioWorkletProcessor {
@@ -66,7 +66,7 @@ class StripProcessor extends AudioWorkletProcessor {
     this.deBp = new Biquad(); this.deEnv = 0; this.deGr = 0; this.deRedMax = 0;
     this.dn = 1e-18;
     this.pkIn = 0; this.pkOut = 0; this.grMax = 0; this.gateRedMax = 0; this.count = 0;
-    this.gateLvlMax = -120; this.clipCount = 0; this.nanCount = 0;
+    this.gateLvlMax = -120; this.clipCount = 0; this.nanCount = 0; this.sqIn = 0; this.sqOut = 0;
     this.recIn = null; this.recOut = null; this.recPos = 0; this.take = null; this.playing = false; this.playPos = 0;
     this.port.onmessage = (e) => {
       if (e.data.type === 'params') { Object.assign(this.p, e.data.p); this.update(); }
@@ -113,7 +113,7 @@ class StripProcessor extends AudioWorkletProcessor {
       const raw = x;
       this.trimG += (this.trimT - this.trimG) * sm; x *= this.trimG;
       const xin = x;
-      const ax = Math.abs(x); if (ax > this.pkIn) this.pkIn = ax;
+      const ax = Math.abs(x); if (ax > this.pkIn) this.pkIn = ax; this.sqIn += x * x;
       if (!p.bypass) {
         if (p.filtersIn) { x = this.hp2.process(this.hp1.process(x)); x = this.lp.process(x); }
         if (p.gateIn) {
@@ -152,7 +152,8 @@ class StripProcessor extends AudioWorkletProcessor {
           const over = DB(this.deEnv + 1e-9) - this.deThr;
           const want = over > 0 ? Math.min(12, over * 0.75) : 0;
           this.deGr += (want > this.deGr ? this.deAtk : this.deRel) * (want - this.deGr);
-          x -= (1 - LIN(-this.deGr)) * bp;
+          if (p.deListen) x = (1 - LIN(-this.deGr)) * bp * 2;   // LISTEN: hear only what the de-esser takes away (louder, so it is easy to judge)
+          else x -= (1 - LIN(-this.deGr)) * bp;
           if (this.deGr > this.deRedMax) this.deRedMax = this.deGr;
         } else { this.deGr = 0; }
         if (p.eqIn) { x = this.eqLF.process(x); x = this.eqLMF.process(x); x = this.eqHMF.process(x); x = this.eqHF.process(x); }
@@ -173,13 +174,15 @@ class StripProcessor extends AudioWorkletProcessor {
         if (this.recPos < this.recIn.length) { this.recIn[this.recPos] = raw; this.recOut[this.recPos] = x; this.recPos++; }
         else { const a = this.recIn, b = this.recOut; this.recIn = this.recOut = null; this.port.postMessage({ type: 'recDone', inBuf: a, outBuf: b, sr: sampleRate }, [a.buffer, b.buffer]); }
       }
-      const ao = Math.abs(x); if (ao > this.pkOut) this.pkOut = ao;
+      const ao = Math.abs(x); if (ao > this.pkOut) this.pkOut = ao; this.sqOut += x * x;
       for (let c = 0; c < out.length; c++) out[c][i] = x;
     }
     this.count += n;
     if (this.count >= 1024) {
       this.port.postMessage({ type: 'meter', inPk: this.pkIn, outPk: this.pkOut, gr: this.grMax, gateRed: this.gateRedMax, gateOpen: this.gateOpen, lim: this.limRedMax, de: this.deRedMax,
-        gateLvl: this.gateLvlMax, clips: this.clipCount, nans: this.nanCount, t: Date.now(), frames: this.count });
+        gateLvl: this.gateLvlMax, clips: this.clipCount, nans: this.nanCount, t: Date.now(), frames: this.count,
+        rmsIn: Math.sqrt(this.sqIn / this.count), rmsOut: Math.sqrt(this.sqOut / this.count) });
+      this.sqIn = 0; this.sqOut = 0;
       this.count = 0; this.pkIn = this.pkOut = this.grMax = this.gateRedMax = this.limRedMax = this.deRedMax = 0; this.gateLvlMax = -120; this.clipCount = 0; this.nanCount = 0;
     }
     return true;

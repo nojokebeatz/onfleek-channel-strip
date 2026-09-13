@@ -131,6 +131,12 @@ w/scale x h/scale so it always fills the viewport. Column min-widths must sum to
   looked empty after every restart). main.js `state:load` merges `presets.json` + falls back to
   `state.json.bak`; `state:save` rescues on-disk presets unless the renderer passes `presetDelete: 1`.
 
+- 2.8.0: window bounds in userData `window.json` (validated against displays); `win:zoom` resizes the window and
+  `fit()` scales UP as well as down; `deListen` is stripped from the MAIN engine's params in sendParams (monitor
+  only) and is NOT_IN_PRESET; `compAuto` computes compMakeup in `autoMakeup()` before every send (dragging MAKE
+  UP switches AUTO off); worklet meter carries `rmsIn/rmsOut`; verdict = 1.5 s average RMS vs RMS_LO/HI (-30/-16);
+  `state.fast` -> latencyHint interactive; tray icon dataURL from a renderer canvas (`tray:icon`).
+
 ## Traps
 - Chromium hides device names until the mic permission is granted once — `unlockLabels()` does that.
 - `AudioContext.setSinkId('')` = default output; `'default'` id must be mapped to `''`.

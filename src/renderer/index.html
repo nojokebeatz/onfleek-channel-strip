@@ -59,7 +59,7 @@
     <div class="col col-setup">
       <section class="sec sec-patch">
         <div class="sec-head"><span class="sec-title">SETUP</span>
-          <div class="sec-btns"><button class="tog" data-lamp="#c8ff5a" id="btnBoot" title="Start with Windows, hidden in the tray">BOOT</button><button class="pwr" id="btnPower"><i class="led green"></i>ON</button></div>
+          <div class="sec-btns"><button class="tog" id="btnFast" data-lamp="#7fd7ff" title="FAST = smaller audio buffer, less delay. Off = SAFE, fewer dropouts. Try SAFE if you hear crackle.">FAST</button><button class="tog" data-lamp="#c8ff5a" id="btnBoot" title="Start with Windows, hidden in the tray">BOOT</button><button class="pwr" id="btnPower"><i class="led green"></i>ON</button></div>
         </div>
         <div class="patchrow">
           <label class="patch"><span>MIC IN</span><select id="selIn"></select></label>
@@ -146,7 +146,7 @@
     <div class="col">
       <section class="sec sec-comp">
         <div class="sec-head"><span class="sec-title">COMPRESSOR</span>
-          <div class="sec-btns"><button class="tog" data-tog="compIn">IN</button></div>
+          <div class="sec-btns"><button class="tog wide" data-tog="compAuto" data-lamp="#c8ff5a" title="AUTO sets MAKE UP for you from THRESHOLD and RATIO. Turn the MAKE UP knob to take over.">AUTO</button><button class="tog" data-tog="compIn">IN</button></div>
         </div>
         <div class="knobrow">
           <div class="knob c-cream" data-knob="compThresh" data-label="THRESHOLD"></div>
@@ -163,7 +163,7 @@
 
       <section class="sec sec-de">
         <div class="sec-head"><span class="sec-title">DE-ESSER</span>
-          <div class="sec-btns"><button class="tog" data-tog="deIn">IN</button></div>
+          <div class="sec-btns"><button class="tog wide" data-tog="deListen" data-lamp="#ff8a3c" title="Hear ONLY what the de-esser removes (headphones only, callers never hear this). Turn AMOUNT until you hear just the sharp S sounds.">LISTEN</button><button class="tog" data-tog="deIn">IN</button></div>
         </div>
         <div class="knobrow">
           <div class="knob c-cream" data-knob="deFreq" data-label="FREQ"></div>

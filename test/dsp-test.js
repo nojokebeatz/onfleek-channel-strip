@@ -33,7 +33,7 @@ check('fader -20', run({ fader: -20 }, 1000, -6), -26, 0.2);
 check('trim +6', run({ trim: 6 }, 1000, -12), -6, 0.2);
 check('HPF 200: 1k passes', run({ filtersIn: 1, hpf: 200, lpf: 20000 }, 1000, -6), -6, 0.5);
 const hp50 = run({ filtersIn: 1, hpf: 200, lpf: 20000 }, 50, -6);
-console.log(`${hp50 < -30 ? 'PASS' : 'FAIL'}  HPF 200 cuts 50 Hz hard: ${hp50.toFixed(1)} dB (want < -30)`); if (hp50 >= -30) fails++;
+console.log(`${hp50 < -30 ? 'PASS' : 'FAIL'}  HPF 200 cuts 50 Hz hard: ${hp50.toFixed(1)} dB (want < -18)`); if (hp50 >= -30) fails++;
 const lp = run({ filtersIn: 1, hpf: 20, lpf: 3000 }, 12000, -6);
 console.log(`${lp < -25 ? 'PASS' : 'FAIL'}  LPF 3k cuts 12 kHz: ${lp.toFixed(1)} dB (want < -25)`); if (lp >= -25) fails++;
 check('expander 1:4: -50 in, thr -45 (5 below) -> 15 dB down', run({ gateIn: 1, gateExp: 1, gateThresh: -45, gateRange: 40, gateAttack: 1, gateHold: 10, gateRelease: 50 }, 1000, -50), -65, 2);
@@ -77,6 +77,14 @@ check('de-esser at AMOUNT 0 ignores quiet hiss', run({ deIn: 1, deFreq: 7000, de
   p.port.onmessage({ data: { type: 'play', on: false } }); for (let b = 0; b < 40; b++) p.process([[z]], [[oL, oR]]);
   let pk2 = 0; for (let k = 0; k < 128; k++) pk2 = Math.max(pk2, Math.abs(oL[k]));
   console.log(`${pk2 < 0.01 ? 'PASS' : 'FAIL'}  PLAY off goes back to the live mic: peak ${pk2.toFixed(3)}`); if (pk2 >= 0.01) fails++;
+}
+{ // de-esser LISTEN: a 1 kHz tone (not an S) comes out almost silent, a 7 kHz hiss comes out loud
+  const P2 = Object.assign({}, FLAT, { deIn: 1, deListen: 1, deFreq: 6500, deAmt: 60 });
+  const lvl = (f) => { const p = new Proc(); p.port.onmessage({ data: { type: 'params', p: P2 } }); const oL = new Float32Array(128), oR = new Float32Array(128); let pk = 0, n = 0;
+    for (let b = 0; b < 200; b++) { const inp = new Float32Array(128); for (let k = 0; k < 128; k++) inp[k] = 0.5 * Math.sin(2 * Math.PI * f * (n++) / SR); p.process([[inp]], [[oL, oR]]); if (b > 150) for (let k = 0; k < 128; k++) pk = Math.max(pk, Math.abs(oL[k])); } return 20 * Math.log10(pk + 1e-9); };
+  const tone = lvl(1000), hiss = lvl(7000);
+  const ok = tone < -18 && hiss > -12 && hiss - tone > 15;
+  console.log(`${ok ? 'PASS' : 'FAIL'}  LISTEN: 1 kHz tone ${tone.toFixed(1)} dB (want < -18), 7 kHz hiss ${hiss.toFixed(1)} dB (want > -12)`); if (!ok) fails++;
 }
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASS');
 process.exit(fails ? 1 : 0);
