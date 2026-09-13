@@ -129,6 +129,14 @@ const runPSOut = (args) => new Promise((resolve, reject) => {
 ipcMain.handle('mic:rename', async (e, from, to, flow, adapter) => {
   const esc = s => String(s).replace(/'/g, "''").replace(/[\r\n]/g, '');
   const branch = flow === 'render' ? 'Render' : 'Capture';   // Capture = mic side, Render = speaker side
+  // SPEAKER-SIDE SAFETY NET: a rename here can silence real speakers, so the render branch is far
+  // stricter than the mic branch. Both the adapter (maker) AND the device's own current name must
+  // match, and the device's own current name must already start with "Cable" - a real speaker is
+  // never named that, so this can never touch one even if a future bug passes a wrong "from" or an
+  // empty adapter. (Owner reported real speakers vanishing 2026-09-13; this closes the loophole.)
+  const guard = flow === 'render'
+    ? `$adOk = '${esc(adapter || '')}' -ne '' -and ($a -like '*${esc(adapter || '')}*')\n  $looksLikeCable = $d.ToLower().StartsWith('cable') -or $f.ToLower().StartsWith('cable')`
+    : `$adOk = ('${esc(adapter || '')}' -eq '') -or ($a -like '*${esc(adapter || '')}*')\n  $looksLikeCable = $true`;
   const script = `
 $desc='{a45c254e-df1c-4efd-8020-67d146a850e0},2'; $fn='{a45c254e-df1c-4efd-8020-67d146a850e0},14'; $adap='{b3f8fa53-0004-438e-9003-51a46e139bfc},6'
 $root='SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\MMDevices\\Audio\\${branch}'
@@ -140,12 +148,13 @@ foreach ($k in $cap.GetSubKeyNames()) {
   $d=Plain([string]$r.GetValue($desc)); $f=Plain([string]$r.GetValue($fn)); $a=Plain([string]$r.GetValue($adap)); $r.Close()
   $st=[Microsoft.Win32.Registry]::LocalMachine.OpenSubKey("$root\\$k"); $state=0; if ($st) { $state=[int]$st.GetValue('DeviceState',0); $st.Close() }
   if ($state -eq 1 -and $d) { $seen += $d }
-  $adOk = ('${esc(adapter || '')}' -eq '') -or ($a -like '*${esc(adapter || '')}*')
-  if ($adOk -and ($d -eq '${esc(from)}' -or $f -like '${esc(from)} (*' -or $d -like '${esc(from)} (*')) {
+  ${guard}
+  if ($adOk -and $looksLikeCable -and ($d -eq '${esc(from)}' -or $f -like '${esc(from)} (*' -or $d -like '${esc(from)} (*')) {
     $w=[Microsoft.Win32.Registry]::LocalMachine.OpenSubKey("$root\\$k\\Properties",[Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,$rights)
     $w.SetValue($desc,'${esc(to)}',[Microsoft.Win32.RegistryValueKind]::String)
     if ($f) { $full = if ($a) { '${esc(to)} (' + $a + ')' } else { '${esc(to)}' }; $w.SetValue($fn,$full,[Microsoft.Win32.RegistryValueKind]::String) }
     $w.Close(); $n++
+    break   # only ever touch the ONE device that matched - never loop on and rename anything else
   }
 }
 "RENAMED $n"

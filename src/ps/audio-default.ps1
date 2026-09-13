@@ -138,6 +138,10 @@ if ($Mode -eq 'setformat') {
     if ((Get-ItemProperty $k.PSPath).DeviceState -ne 1) { continue }
     $v = Get-ItemProperty $p; $d = Plain([string]$v.$desc); $a = Plain([string]$v.$adap)
     if ($Adapter -and ($a -notlike "*$Adapter*")) { continue }
+    # SPEAKER-SIDE SAFETY NET: never rewrite a Render (speaker) device's format unless its OWN current
+    # name already starts with "Cable" - a real speaker is never named that, so a wrong $Name/$Adapter
+    # can never reach it. (Owner reported real speakers vanishing 2026-09-13.)
+    if ($Flow -eq 'Render' -and -not $d.ToLower().StartsWith('cable')) { continue }
     if ($d -eq $Name -or $d -like "$Name (*") { $hit = $prefix + $k.PSChildName; break }
   }
   if (-not $hit) { Write-Output "NOTFOUND $Name"; exit 2 }

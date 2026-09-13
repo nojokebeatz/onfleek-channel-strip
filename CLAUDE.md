@@ -157,6 +157,12 @@ w/scale x h/scale so it always fills the viewport. Column min-widths must sum to
   the section headers); modern cards steal ~9 px per column, so `.sec` padding is 8 px and `.sec-btns` gap 4 px
   there. `--shotmodern` flag for screenshots.
 
+- ⛔ 2.11.1 SAFETY: `mic:rename` (main.js) and `setformat` (audio-default.ps1) now require, for the RENDER
+  (speaker) branch ONLY, that the device's OWN CURRENT name already starts with "Cable" before any write -
+  a real speaker can never match. `mic:rename` also `break`s after the first match now (it used to loop
+  every subkey). Root cause of the 09-13 "cleared my speakers" report was never confirmed (no log was
+  captured) - this is defense in depth, not a proven fix. If it recurs, get SEND LOG first.
+
 ## Traps
 - Chromium hides device names until the mic permission is granted once — `unlockLabels()` does that.
 - `AudioContext.setSinkId('')` = default output; `'default'` id must be mapped to `''`.

@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.11.1 — 2026-09-13 — safety fix: never touch real speakers
+- An owner reported real speakers disappearing from Windows' output list after using SETUP. We could not
+  reproduce it, but found and closed a real weak spot: the rename and FIX RATE tools that touch the
+  speaker (Render) side now REFUSE to write to any device whose current name does not already start with
+  "Cable". A real speaker is never named that, so these tools can no longer reach one, even if a future
+  bug passes the wrong device name. The rename tool also now stops after the first match instead of
+  looping every device on the system.
+- If your speakers ever go missing: open the classic Sound panel (Windows key, type `mmsys.cpl`), right-click
+  the empty space in Playback, turn on "Show Disabled Devices", and re-enable + set your speakers as
+  default. Restarting the "Windows Audio" service (`services.msc`) also fixes most cases.
+
 ## 2.11.0 — 2026-09-13 — MODERN skin
 - SKIN button (top bar, or press K) switches between the classic console plate and a modern look: deep
   navy, rounded cards with thin blue borders, blue power dots on every section, white labels, blue numbers,
