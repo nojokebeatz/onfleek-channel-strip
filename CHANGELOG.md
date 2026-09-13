@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.8.1 — 2026-09-13 — colored EQ bands
+- Each EQ band row now wears its own color all the way across: tinted background, side stripe, FREQ /
+  GAIN / Q labels and numbers, knob tick marks, and the BELL lamp. HF red, HMF green, LMF blue, LF brown.
+
 ## 2.8.0 — 2026-09-13 — twelve improvements
 1. The window can be any size and the whole panel scales with it. Bigger window = bigger text.
 2. The window remembers where you left it and how big it was.

@@ -246,3 +246,15 @@ select optgroup{color:#9a988f;font:700 11px var(--font);letter-spacing:1px;backg
 
 .knob .val input.typein{width:64px;height:16px;padding:0 3px;border:1px solid var(--amber);border-radius:2px;background:#0b0c0d;color:#ffb02e;font:600 11px var(--mono);text-align:center;outline:none}
 .clips .ledlabel{cursor:pointer}
+
+/* EQ bands: every row wears its band colour - tag, stripe, tint, labels, numbers, ticks - so HF/HMF/LMF/LF read at a glance */
+.band.hf{--band:#ff6a5e;--bandbg:rgba(184,51,42,.14)}
+.band.hmf{--band:#5fe07a;--bandbg:rgba(63,143,74,.14)}
+.band.lmf{--band:#6f9cff;--bandbg:rgba(47,92,168,.16)}
+.band.lf{--band:#e0925a;--bandbg:rgba(124,75,44,.16)}
+.knobrow.band{margin:2px 0;border-radius:4px;background:linear-gradient(90deg,var(--bandbg),rgba(0,0,0,0) 85%);box-shadow:inset 3px 0 0 var(--band),inset 0 1px 0 rgba(255,255,255,.03)}
+.knobrow.band .knob .lbl{color:var(--band)}
+.knobrow.band .knob .val{color:var(--band);opacity:.9}
+.knobrow.band .knob.active .val,.knobrow.band .knob:hover .val{color:var(--amber);opacity:1}
+.knobrow.band .ring line{stroke:var(--band);opacity:.85}
+.knobrow.band .tiny{color:var(--band);opacity:.8}
