@@ -137,6 +137,9 @@ w/scale x h/scale so it always fills the viewport. Column min-widths must sum to
   UP switches AUTO off); worklet meter carries `rmsIn/rmsOut`; verdict = 1.5 s average RMS vs RMS_LO/HI (-30/-16);
   `state.fast` -> latencyHint interactive; tray icon dataURL from a renderer canvas (`tray:icon`).
 
+- 2.8.2: meter canvas is 205 px wide with `MPAD` (12 logical px) translated in as a left gutter for the sideways
+  GATE / COMP names; `lineAt` subtracts MPAD; clearRect starts at -MPAD.
+
 ## Traps
 - Chromium hides device names until the mic permission is granted once — `unlockLabels()` does that.
 - `AudioContext.setSinkId('')` = default output; `'default'` id must be mapped to `''`.

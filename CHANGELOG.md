@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.8.2 — 2026-09-13 — meter names moved aside
+- The GATE and COMP names now sit sideways in a gutter beside their arrows, so they never cover the IN
+  meter bars. While you drag a line, its number shows above the column.
+
 ## 2.8.1 — 2026-09-13 — colored EQ bands
 - Each EQ band row now wears its own color all the way across: tinted background, side stripe, FREQ /
   GAIN / Q labels and numbers, knob tick marks, and the BELL lamp. HF red, HMF green, LMF blue, LF brown.

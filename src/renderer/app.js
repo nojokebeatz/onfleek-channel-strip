@@ -531,7 +531,8 @@ function flashLcd(text, ms = 3000) { lcd(text); setTimeout(() => { if (running &
 const cv = $('#meters'), g = cv.getContext('2d');
 const DPR = Math.min(2, window.devicePixelRatio || 1);
 const MK = 340 / 270;   // meter zoom: the drawing code thinks in 150x270, the canvas is 190x340
-cv.width = Math.round(190 * DPR); cv.height = Math.round(340 * DPR); g.scale(DPR * MK, DPR * MK);
+const MPAD = 12;   // left gutter (logical px) for the sideways GATE / COMP names
+cv.width = Math.round(205 * DPR); cv.height = Math.round(340 * DPR); g.scale(DPR * MK, DPR * MK); g.translate(MPAD, 0);
 const disp = { in: -90, out: -90, gr: 0, inHold: -90, outHold: -90, inHoldT: 0, outHoldT: 0, clipIn: 0, clipOut: 0, de: 0, gateCut: 0 };
 const SEGS = 30;
 function segDb(k) { // segment k (0 = bottom) lights at this dB
@@ -551,8 +552,8 @@ function yToDb(y) { // inverse of dbToY, whole dB
   return Math.round(clamp(lo + f * (hi - lo), -60, 0));
 }
 function lineAt(e) { // which threshold line is under the pointer (IN column only)
-  const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) * (150 / r.width), y = (e.clientY - r.top) * (270 / r.height);
-  if (x < 4 || x > 52) return null;
+  const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) * (162 / r.width) - MPAD, y = (e.clientY - r.top) * (270 / r.height);
+  if (x < 0 || x > 52) return null;
   const pp = state.params, cands = [];
   if (pp.gateIn && !pp.bypass) cands.push(['gateThresh', Math.abs(y - dbToY(pp.gateThresh))]);
   if (pp.compIn && !pp.bypass) cands.push(['compThresh', Math.abs(y - dbToY(pp.compThresh))]);
@@ -593,10 +594,19 @@ function drawMark(x, m) {
     else { g.moveTo(x - 4, yy); g.lineTo(x - 9, yy - 4); g.lineTo(x - 9, yy + 4); }
     g.closePath(); g.fill();
   }
-  if (m.label) {
-    const ty = m.below ? yy + 10 : yy - 4, w = m.hot ? 30 : 24, tx = x + 11 - w / 2;
-    g.fillStyle = m.hot ? m.color : 'rgba(0,0,0,.8)'; g.fillRect(tx, ty - 7, w, 9);
-    g.fillStyle = m.hot ? '#000' : m.color; g.font = '800 7px Bahnschrift, "Arial Narrow", sans-serif'; g.textAlign = 'center'; g.fillText(m.label, x + 11, ty);
+  if (m.label) { // name runs sideways in the gutter beside the arrow, so it never covers the bars
+    const cx = x - 11.5, cy = m.labelY !== undefined ? m.labelY : yy;
+    g.save(); g.translate(cx, cy); g.rotate(-Math.PI / 2);
+    g.font = '800 7px Bahnschrift, "Arial Narrow", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    const w = g.measureText(m.label).width + 4;
+    g.fillStyle = m.hot ? m.color : 'rgba(0,0,0,.85)'; g.fillRect(-w / 2, -4.5, w, 9);
+    g.fillStyle = m.hot ? '#000' : m.color; g.fillText(m.label, 0, 0.5);
+    g.restore(); g.textBaseline = 'alphabetic';
+  }
+  if (m.value) { // while dragging: the number sits above the column, out of the way
+    g.font = '800 8px Bahnschrift, "Arial Narrow", sans-serif'; g.textAlign = 'center';
+    g.fillStyle = 'rgba(0,0,0,.85)'; g.fillRect(x - 6, MT - 15, 34, 11);
+    g.fillStyle = m.color; g.fillText(m.value, x + 11, MT - 6);
   }
 }
 function drawPointer(x, db, color) { // what the gate detector sees right now: a small pointer on the column's right edge
@@ -678,19 +688,24 @@ function loop(t) {
   if (meter.inPk >= 0.99) disp.clipIn = 2; else disp.clipIn -= dt;
   if (meter.outPk >= 0.99) disp.clipOut = 2; else disp.clipOut -= dt;
   $('#clipIn').classList.toggle('on', disp.clipIn > 0); $('#clipOut').classList.toggle('on', disp.clipOut > 0);
-  g.clearRect(0, 0, 151, 270);
+  g.clearRect(-MPAD, 0, 163, 270);
   // IN column markers: the gate's OPEN line, its CLOSE line (hysteresis), the compressor threshold, and a white
   // pointer showing the level the gate detector actually sees right now. Everything is drawn from the same numbers
   // the audio engine uses, so what you see is what it does.
   const pp = state.params, inMarks = [];
   // Two draggable lines: GATE (amber = open, red = closed) with a faint band under it where the gate lets go,
   // and COMP (cream). Grab a line and slide it; the matching knob turns with it.
-  if (pp.gateIn && !pp.bypass) {
+  const gOn = pp.gateIn && !pp.bypass, compOn = pp.compIn && !pp.bypass;
+  let gy = gOn ? dbToY(pp.gateThresh) : -99, cy = compOn ? dbToY(pp.compThresh) : -99, gLabelY = gy, cLabelY = cy;
+  if (gOn && compOn && Math.abs(gy - cy) < 24) { // labels would overlap: push them apart
+    const mid = (gy + cy) / 2; if (gy >= cy) { gLabelY = mid + 12; cLabelY = mid - 12; } else { gLabelY = mid - 12; cLabelY = mid + 12; }
+  }
+  if (gOn) {
     const T = pp.gateThresh, open = meter.gateOpen && running;
     inMarks.push({ band: [T - GATE_HYST, T], bandColor: open ? 'rgba(255,176,46,.12)' : 'rgba(255,90,78,.12)' });
-    inMarks.push({ db: T, color: open ? '#ffb02e' : '#ff5a4e', label: mDrag === 'gateThresh' ? T + ' dB' : 'GATE', width: 2, hot: mHover === 'gateThresh' || mDrag === 'gateThresh' });
+    inMarks.push({ db: T, color: open ? '#ffb02e' : '#ff5a4e', label: 'GATE', labelY: clamp(gLabelY, MT + 12, MT + MH - 12), width: 2, hot: mHover === 'gateThresh' || mDrag === 'gateThresh', value: mDrag === 'gateThresh' ? T + ' dB' : '' });
   }
-  if (pp.compIn && !pp.bypass) inMarks.push({ db: pp.compThresh, color: '#e4dfd0', label: mDrag === 'compThresh' ? pp.compThresh + ' dB' : 'COMP', width: 1, dash: [3, 2], side: 'right', below: true, hot: mHover === 'compThresh' || mDrag === 'compThresh' });
+  if (compOn) inMarks.push({ db: pp.compThresh, color: '#e4dfd0', label: 'COMP', labelY: clamp(cLabelY, MT + 12, MT + MH - 12), width: 1, dash: [3, 2], hot: mHover === 'compThresh' || mDrag === 'compThresh', value: mDrag === 'compThresh' ? pp.compThresh + ' dB' : '' });
   const gateOnNow = running && pp.gateIn && !pp.bypass;
   drawColumn(18, disp.in, disp.inHold, 'IN', false, inMarks, gateOnNow ? meter.gateLvl : undefined, meter.gateOpen ? '#ffffff' : '#ff8a80');
   drawGR(60, disp.gr); drawColumn(114, disp.out, disp.outHold, 'OUT', true); drawScale();
