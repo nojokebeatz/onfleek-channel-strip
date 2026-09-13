@@ -140,6 +140,11 @@ w/scale x h/scale so it always fills the viewport. Column min-widths must sum to
 - 2.8.2: meter canvas is 205 px wide with `MPAD` (12 logical px) translated in as a left gutter for the sideways
   GATE / COMP names; `lineAt` subtracts MPAD; clearRect starts at -MPAD.
 
+- 2.9.0: COMPACT = `#compact` div OUTSIDE `#strip` (must stay after `#strip` and before the scripts); `setCompact()`
+  hides #strip (`#strip[hidden]{display:none}` is needed because #strip is display:flex), `win:compact` IPC
+  shrinks the window to 620x150 always-on-top and restores `bigBounds`; `fit()` is a no-op while compact;
+  `rememberBounds` ignores small bounds. `--shotcompact` flag for screenshots.
+
 ## Traps
 - Chromium hides device names until the mic permission is granted once — `unlockLabels()` does that.
 - `AudioContext.setSinkId('')` = default output; `'default'` id must be mapped to `''`.

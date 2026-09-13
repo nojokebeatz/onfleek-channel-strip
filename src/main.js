@@ -37,7 +37,7 @@ function savedBounds() {
   } catch { return null; }
 }
 let boundsTimer = 0;
-function rememberBounds() { clearTimeout(boundsTimer); boundsTimer = setTimeout(() => { try { if (win && !win.isMinimized()) fs.writeFileSync(boundsPath(), JSON.stringify(win.getBounds())); } catch {} }, 500); }
+function rememberBounds() { clearTimeout(boundsTimer); boundsTimer = setTimeout(() => { try { if (win && !win.isMinimized()) { const b = win.getBounds(); if (b.width >= 1000 && b.height >= 560) fs.writeFileSync(boundsPath(), JSON.stringify(b)); } } catch {} }, 500); }
 function createWindow() {
   const b = savedBounds() || {};
   win = new BrowserWindow({
@@ -52,7 +52,7 @@ function createWindow() {
   win.setMenuBarVisibility(false);
   win.on('resize', rememberBounds); win.on('move', rememberBounds);
   win.on('close', (e) => { if (!quitting) { e.preventDefault(); win.hide(); } }); // X = hide to tray, keep processing
-  win.loadFile(path.join(__dirname, 'renderer', 'index.html'), process.argv.includes('--shotlog') ? { hash: 'shotlog' } : {});
+  win.loadFile(path.join(__dirname, 'renderer', 'index.html'), process.argv.includes('--shotlog') ? { hash: 'shotlog' } : process.argv.includes('--shotcompact') ? { hash: 'shotcompact' } : {});
 
   // Dev helper: --screenshot=<file.png> captures the UI and quits.
   const shot = process.argv.find(a => a.startsWith('--screenshot='));
@@ -321,6 +321,19 @@ ipcMain.handle('win:zoom', (e, f) => {
   if (f === 0) { win.setSize(1560, 800); return; }
   const w = Math.round(Math.max(1000, b.width * f)), h = Math.round(Math.max(560, b.height * f));
   win.setSize(w, h);
+});
+// COMPACT: shrink the window to a little strip (and remember the big size to come back to)
+let bigBounds = null;
+ipcMain.handle('win:compact', (e, on) => {
+  if (!win) return;
+  if (on) {
+    bigBounds = win.getBounds(); win.setMinimumSize(420, 150); win.setSize(620, 150); win.setAlwaysOnTop(true, 'floating');
+  } else {
+    win.setAlwaysOnTop(false); win.setMinimumSize(1000, 560);
+    const b = bigBounds || savedBounds() || { width: 1560, height: 800 }; win.setSize(b.width, b.height);
+    if (b.x !== undefined) win.setPosition(b.x, b.y);
+  }
+  return true;
 });
 ipcMain.handle('tray:icon', (e, dataUrl) => { try { if (tray) tray.setImage(dataUrl ? nativeImage.createFromDataURL(dataUrl).resize({ width: 16, height: 16 }) : nativeImage.createFromPath(path.join(__dirname, '..', 'build', 'icon.png')).resize({ width: 16, height: 16 })); } catch {} });
 ipcMain.handle('win:close', () => win && win.close());

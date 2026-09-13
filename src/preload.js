@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld('cs', {
   onCableProgress: (cb) => ipcRenderer.on('cable:progress', (e, s) => cb(s)),
   minimize: () => ipcRenderer.invoke('win:minimize'),
   zoom: (f) => ipcRenderer.invoke('win:zoom', f),
+  compact: (on) => ipcRenderer.invoke('win:compact', on),
   trayIcon: (d) => ipcRenderer.invoke('tray:icon', d),
   close: () => ipcRenderer.invoke('win:close')
 });

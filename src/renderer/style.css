@@ -33,7 +33,7 @@ html,body{margin:0;height:100%;background:#1f2023;overflow:hidden;font-family:va
 .winbtns .upd.busy{opacity:.75;cursor:progress}
 .winbtns .upd .led.amber.on{animation:updblink 1s infinite}
 @keyframes updblink{0%,100%{opacity:1}50%{opacity:.35}}
-.brand{display:flex;align-items:baseline;gap:12px}
+.brand{display:flex;align-items:baseline;gap:12px;flex:1;justify-content:center;padding-left:60px}
 .logo{font:italic 800 19px var(--font);letter-spacing:.5px;color:#f1efe6;text-shadow:0 1px 0 #000,0 0 8px rgba(255,255,255,.12)}
 .model{font:600 11px var(--font);letter-spacing:2px;color:var(--ink-dim)}
 .ver{font:500 10px var(--mono);color:var(--ink-faint)}
@@ -258,3 +258,36 @@ select optgroup{color:#9a988f;font:700 11px var(--font);letter-spacing:1px;backg
 .knobrow.band .knob.active .val,.knobrow.band .knob:hover .val{color:var(--amber);opacity:1}
 .knobrow.band .ring line{stroke:var(--band);opacity:.85}
 .knobrow.band .tiny{color:var(--band);opacity:.8}
+
+/* rail buttons: flush right, each its own colour so they are easy to find */
+.rail-top .winbtns{margin-right:6px}
+.winbtns .upd.c-compact{background:linear-gradient(#7a5cff,#5636c9);color:#fff;border-color:#2a1a66}
+.winbtns .upd.c-compact:hover{background:linear-gradient(#8f74ff,#6a4be0)}
+.winbtns .upd.c-share{background:linear-gradient(#3d8bff,#2461c4);color:#fff;border-color:#10305e}
+.winbtns .upd.c-share:hover{background:linear-gradient(#5aa0ff,#2f74dc)}
+.winbtns .upd.c-log{background:linear-gradient(#ff9b3d,#d2701a);color:#2a1400;border-color:#5a2e00}
+.winbtns .upd.c-log:hover{background:linear-gradient(#ffb060,#e5832a)}
+.winbtns .upd.c-upd{background:linear-gradient(#3fcf6a,#249a48);color:#04200c;border-color:#0d4a1f}
+.winbtns .upd.c-upd:hover{background:linear-gradient(#5fe08a,#2fb058)}
+.winbtns .upd.c-upd .led{box-shadow:0 0 0 1px rgba(0,0,0,.5)}
+
+/* ---------- COMPACT mode: a small always-handy strip with just the basics ---------- */
+#compact{position:absolute;inset:0;display:flex;flex-direction:column;background:#1f2023;color:var(--ink)}
+#compact[hidden]{display:none}
+.c-rail{height:34px;flex:none;display:flex;align-items:center;gap:10px;padding:0 8px 0 12px;background:linear-gradient(180deg,#3a3b3f,#2a2b2e);border-bottom:1px solid #0d0d0f;-webkit-app-region:drag}
+.c-brand{font:italic 800 13px var(--font);color:#f2efe6;letter-spacing:.5px;white-space:nowrap}
+.c-brand b{font-style:normal;font-weight:700;color:#9b998f;font-size:10px;letter-spacing:1.5px;margin-left:4px}
+.c-lcd{flex:1;min-width:0;height:22px;line-height:20px;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.c-win{display:flex;gap:6px;-webkit-app-region:no-drag}
+.c-win button{height:22px;min-width:26px;padding:0 8px;border:1px solid #111;border-radius:3px;background:linear-gradient(#4a4b4f,#2e2f32);color:#cfcdc2;font:800 10px/1 var(--font);letter-spacing:1px;cursor:pointer}
+.c-win #cExpand{background:linear-gradient(#7a5cff,#5636c9);color:#fff;border-color:#2a1a66}
+.c-win button:hover{filter:brightness(1.15)} .c-win #cClose:hover{color:#ff6b61}
+.c-body{flex:1;display:flex;flex-direction:column;gap:6px;padding:8px 12px 10px}
+.c-meters{flex:none;background:#0b0c0d;border-radius:4px;box-shadow:inset 0 1px 4px rgba(0,0,0,.9);padding:4px 6px}
+#cMeters{display:block;width:100%;height:56px}
+.c-btns{display:flex;align-items:center;gap:8px}
+.c-btns .tog{height:32px}
+.c-btns .tog .lamp{top:5px}
+.c-preset{flex:1;min-width:0;display:flex}
+.c-preset select{flex:1;min-width:0;height:32px;padding:0 8px;border:1px solid #000;border-radius:3px;background:#101113;color:#e4e1d6;font:600 12px var(--font);color-scheme:dark}
+#strip[hidden]{display:none}

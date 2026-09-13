@@ -13,7 +13,7 @@
   <div class="rail-top" id="titlebar">
     <i class="screw"></i>
     <div class="brand"><span class="logo">OnFleek</span><span class="model">CS-9000 · VOCAL CHANNEL STRIP</span><span class="ver" id="verLabel" title="Click to see what changed in each version"></span><span class="built">BUILT BY THE GARY WHITE</span></div>
-    <div class="winbtns"><button class="upd" id="btnShare" title="Get the link to share this app, or copy your settings as a code">SHARE</button><button class="upd" id="btnLog" title="Send the app's log to OnFleek so Claude can read it">SEND LOG</button><button class="upd" id="btnUpdate" title="Check for a new version"><i class="led green" id="ledUpd"></i><span id="btnUpdateText">UPDATE</span></button><button id="btnMin" title="Minimize">&#8211;</button><button id="btnClose" title="Close">&#215;</button></div>
+    <div class="winbtns"><button class="upd c-compact" id="btnCompact" title="Small window with just the basics (press C)">COMPACT</button><button class="upd c-share" id="btnShare" title="Get the link to share this app, or copy your settings as a code">SHARE</button><button class="upd c-log" id="btnLog" title="Send the app's log to OnFleek so Claude can read it">SEND LOG</button><button class="upd c-upd" id="btnUpdate" title="Check for a new version"><i class="led green" id="ledUpd"></i><span id="btnUpdateText">UPDATE</span></button><button id="btnMin" title="Minimize">&#8211;</button><button id="btnClose" title="Close">&#215;</button></div>
     <i class="screw"></i>
   </div>
 
@@ -224,6 +224,20 @@
 
   </div>
 </div>
+</div>
+  <div id="compact" hidden>
+  <div class="c-rail"><span class="c-brand">OnFleek <b>CS-9000</b></span><span class="c-lcd lcdsmall" id="cLcd">STANDBY</span>
+    <div class="c-win"><button id="cExpand" title="Back to the full panel (press C)">FULL</button><button id="cMin" title="Minimize">&#8211;</button><button id="cClose" title="Hide to tray">&#215;</button></div></div>
+  <div class="c-body">
+    <div class="c-meters"><canvas id="cMeters" width="600" height="56"></canvas></div>
+    <div class="c-btns">
+      <button class="tog wide" id="cMute" data-lamp="#ff3b30" title="Mute (M or Ctrl+Shift+M)">MUTE</button>
+      <button class="tog wide" id="cBypass" data-lamp="#ffb02e" title="Bypass all processing (B)">BYPASS</button>
+      <button class="tog" id="cMon" data-lamp="#4cff6a" title="Hear yourself in headphones">MON</button>
+      <button class="tog" id="cLock" data-lamp="#ff5a4e" title="Lock the panel (L)">LOCK</button>
+      <label class="c-preset"><select id="cPreset"></select></label>
+    </div>
+  </div>
 </div>
 <script src="vendor/gsap.min.js"></script>
 <script src="app.js"></script>

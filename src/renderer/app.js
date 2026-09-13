@@ -58,7 +58,7 @@ const PRESETS = {
 };
 
 /* ---------- state ---------- */
-const state = { params: DEFAULT_PARAMS(), inputId: '', outputId: '', phonesId: '', mon: 0, nr: 0, wantDefault: 0, prevDefaultMic: '', logPin: '', rangeMigrated: 0, userPresets: {}, preset: 'Voice – Natural', fast: 0, locked: false };
+const state = { params: DEFAULT_PARAMS(), inputId: '', outputId: '', phonesId: '', mon: 0, nr: 0, wantDefault: 0, prevDefaultMic: '', logPin: '', rangeMigrated: 0, userPresets: {}, preset: 'Voice – Natural', fast: 0, locked: false, compact: 0 };
 let ctx = null, node = null, stream = null, running = false, version = '0.0.0';
 let monCtx = null, monNode = null, monStream = null, monGain = null, lastOuts = [], setupTimer = 0, defaults = null, prevDefault = '';
 let learning = false, runLcd = 'STANDBY', reconnectTimer = 0, lastIns = [], formats = null;
@@ -95,6 +95,39 @@ async function finishRecording(d) {
   if (monNode) monNode.port.postMessage({ type: 'take', buf: take.slice() });
   try { const name = await window.cs.saveCapture(new Uint8Array(wavStereo16(d.inBuf, d.outBuf, d.sr))); log('capture saved ' + name + ' sr=' + d.sr); flashLcd('RECORDED · PRESS PLAY TO HEAR IT · SEND LOG SENDS IT TO CLAUDE', 6000); }
   catch (e) { lcd('CAPTURE FAILED: ' + (e.message || e), true); }
+}
+/* ---------- COMPACT mode ---------- */
+const cCv = $('#cMeters'), cG = cCv.getContext('2d');
+async function setCompact(on) {
+  state.compact = !!on; save();
+  $('#strip').hidden = state.compact; $('#compact').hidden = !state.compact;
+  await window.cs.compact(state.compact);
+  if (!state.compact) { fit(); renderAll(); } else { syncCompact(); }
+  log('compact ' + (state.compact ? 'on' : 'off'));
+}
+function syncCompact() {
+  if (!state.compact) return;
+  $('#cMute').classList.toggle('on', !!state.params.mute); $('#cBypass').classList.toggle('on', !!state.params.bypass);
+  $('#cMon').classList.toggle('on', !!state.mon); $('#cLock').classList.toggle('on', !!state.locked);
+  const cp = $('#cPreset'); if (cp.innerHTML !== $('#selPreset').innerHTML) cp.innerHTML = $('#selPreset').innerHTML; cp.value = $('#selPreset').value;
+  $('#cLcd').textContent = $('#lcd').textContent; $('#cLcd').className = 'c-lcd lcdsmall ' + ($('#lcd').classList.contains('err') ? 'loud' : '');
+}
+function drawCompactMeters() {
+  const W = cCv.width, H = cCv.height, pad = 46, barW = W - pad - 8;
+  cG.clearRect(0, 0, W, H); cG.font = '800 11px Bahnschrift, "Arial Narrow", sans-serif'; cG.textAlign = 'left';
+  const rows = [['IN', disp.in, disp.inHold, false], ['OUT', disp.out, disp.outHold, true]];
+  rows.forEach(([name, lvl, hold, target], i) => {
+    const y = 6 + i * 26, h = 18;
+    cG.fillStyle = '#c9c7bc'; cG.fillText(name, 4, y + 14);
+    cG.fillStyle = '#151618'; cG.fillRect(pad, y, barW, h);
+    if (target) { const x1 = pad + barW * (TARGET_LO + 60) / 60, x2 = pad + barW * (TARGET_HI + 60) / 60; cG.fillStyle = 'rgba(76,255,106,.12)'; cG.fillRect(x1, y, x2 - x1, h); }
+    const segs = 40, sw = barW / segs;
+    for (let k = 0; k < segs; k++) { const d = -60 + k * 1.5, lit = lvl >= d; cG.fillStyle = segColor(d, lit); cG.fillRect(pad + k * sw + 1, y + 2, sw - 2, h - 4); }
+    if (hold > -60) { const x = pad + barW * clamp((hold + 60) / 60, 0, 1); cG.fillStyle = '#fff'; cG.fillRect(x - 1, y, 2, h); }
+    if (name === 'IN' && state.params.gateIn && !state.params.bypass) { const x = pad + barW * clamp((state.params.gateThresh + 60) / 60, 0, 1); cG.fillStyle = meter.gateOpen && running ? '#ffb02e' : '#ff5a4e'; cG.fillRect(x - 1, y - 2, 2, h + 4); }
+  });
+  cG.fillStyle = '#8f8d84'; cG.font = '600 9px Bahnschrift, "Arial Narrow", sans-serif'; cG.textAlign = 'center';
+  [-60, -40, -30, -18, -12, -6, 0].forEach(d => cG.fillText(d === 0 ? '0' : String(-d), pad + barW * (d + 60) / 60, H - 1));
 }
 /* ---------- lamps: every on/off button gets a real lamp element; GSAP animates state changes ---------- */
 function setupLamps() {
@@ -709,6 +742,7 @@ function loop(t) {
   const gateOnNow = running && pp.gateIn && !pp.bypass;
   drawColumn(18, disp.in, disp.inHold, 'IN', false, inMarks, gateOnNow ? meter.gateLvl : undefined, meter.gateOpen ? '#ffffff' : '#ff8a80');
   drawGR(60, disp.gr); drawColumn(114, disp.out, disp.outHold, 'OUT', true); drawScale();
+  if (state.compact) { drawCompactMeters(); if ((t / 250 | 0) % 2 === 0) syncCompact(); }
   $('#grReadout').textContent = disp.gr.toFixed(1);
   if ((t / 100 | 0) % 2 === 0) $('#peaks').textContent = running ? `PEAK  IN ${disp.inHold <= -60 ? '\u2212\u221e' : disp.inHold.toFixed(1)}  \u00b7  OUT ${disp.outHold <= -60 ? '\u2212\u221e' : disp.outHold.toFixed(1)}  dBFS` : 'PEAK  IN \u2014  \u00b7  OUT \u2014';
   const gateOn = running && state.params.gateIn && !state.params.bypass;
@@ -793,6 +827,7 @@ let scaleNow = 1;
 const currentScale = () => scaleNow;
 const NAT_W = 1560, NAT_H = 760;   // the layout is designed for this size; smaller windows zoom it down
 function fit() {
+  if (state.compact) return;
   const w = window.innerWidth, h = window.innerHeight;
   scaleNow = Math.min(w / NAT_W, h / NAT_H);   // bigger window = bigger panel and text, smaller window = zoom down
   strip.style.width = (w / scaleNow) + 'px'; strip.style.height = (h / scaleNow) + 'px';
@@ -865,7 +900,7 @@ async function boot() {
   $$('[data-knob]').forEach(buildKnob); $$('[data-tog]').forEach(buildToggle); buildFader(); buildPresets();
   const saved = await window.cs.loadState();
   if (saved && !saved.params && saved.userPresets) state.userPresets = saved.userPresets;
-  if (saved && saved.params) { state.params = Object.assign(DEFAULT_PARAMS(), saved.params); state.inputId = saved.inputId || ''; state.phonesId = saved.phonesId || ''; state.mon = saved.mon ? 1 : 0; state.nr = saved.nr ? 1 : 0; state.logPin = saved.logPin || ''; state.userPresets = (saved.userPresets && typeof saved.userPresets === 'object') ? saved.userPresets : {}; state.wantDefault = saved.wantDefault ? 1 : 0; state.fast = saved.fast ? 1 : 0; state.prevDefaultMic = saved.prevDefaultMic || ''; state.preset = saved.preset ?? 'Voice – Natural'; }
+  if (saved && saved.params) { state.params = Object.assign(DEFAULT_PARAMS(), saved.params); state.inputId = saved.inputId || ''; state.phonesId = saved.phonesId || ''; state.mon = saved.mon ? 1 : 0; state.nr = saved.nr ? 1 : 0; state.logPin = saved.logPin || ''; state.userPresets = (saved.userPresets && typeof saved.userPresets === 'object') ? saved.userPresets : {}; state.wantDefault = saved.wantDefault ? 1 : 0; state.fast = saved.fast ? 1 : 0; state.compact = saved.compact ? 1 : 0; state.prevDefaultMic = saved.prevDefaultMic || ''; state.preset = saved.preset ?? 'Voice – Natural'; }
   state.params.mute = 0; // never start muted
   // One-time fix-up: older versions shipped RANGE at 20 or 40 dB, which let a quiet copy of everything
   // through a closed gate. Move untouched values to FULL (dead silent) and say so once.
@@ -933,6 +968,13 @@ async function boot() {
   $('#btnMin').onclick = () => window.cs.minimize(); $('#btnClose').onclick = () => window.cs.close();
   setupLamps();
   bootAnimation();
+  // COMPACT view wiring
+  $('#btnCompact').onclick = () => setCompact(true); $('#cExpand').onclick = () => setCompact(false);
+  $('#cMin').onclick = () => window.cs.minimize(); $('#cClose').onclick = () => window.cs.close();
+  $('#cMute').onclick = () => togEls.mute.click(); $('#cBypass').onclick = () => togEls.bypass.click();
+  $('#cMon').onclick = () => $('#btnMon').click(); $('#cLock').onclick = () => $('#btnLock').click();
+  $('#cPreset').onchange = () => { const sp = $('#selPreset'); sp.value = $('#cPreset').value; sp.dispatchEvent(new Event('change')); };
+  if (state.compact || location.hash === '#shotcompact') setCompact(true);
   // Double-click a section name: that section goes back to the current preset's settings
   $$('.sec-title').forEach(t => { t.title = 'Double-click to reset this section to the preset'; t.style.cursor = 'pointer'; t.addEventListener('dblclick', () => {
     if (state.locked) return;
@@ -995,7 +1037,7 @@ async function boot() {
     if (e.ctrlKey && k === 's') { e.preventDefault(); $('#btnSavePreset').click(); return; }
     if (e.ctrlKey || e.altKey || e.metaKey) return;
     if (k === 'm') togEls.mute.click(); else if (k === 'b') togEls.bypass.click(); else if (k === 'r') $('#btnRec').click();
-    else if (k === 'p') $('#btnPlay').click(); else if (k === 'l') $('#btnLock').click();
+    else if (k === 'p') $('#btnPlay').click(); else if (k === 'l') $('#btnLock').click(); else if (k === 'c') setCompact(!state.compact);
     else if (k === 'escape') { $('#shareBox').hidden = true; $('#logBox').hidden = true; }
   });
   // REC: 10 s of what goes INTO the strip (left) and what the cable GETS (right), as a WAV Claude can listen to

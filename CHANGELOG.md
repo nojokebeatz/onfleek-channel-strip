@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.9.0 — 2026-09-13 — COMPACT mode, colored rail buttons
+- COMPACT button (top bar, or press C): the app shrinks to a small strip that stays on top of other windows,
+  with IN / OUT meters, the gate line, MUTE, BYPASS, MON, LOCK and the preset picker. FULL brings the whole
+  panel back. The app remembers which mode you left it in.
+- The top-bar buttons moved flush right and each has its own color: COMPACT purple, SHARE blue, SEND LOG
+  orange, UPDATE green.
+
 ## 2.8.2 — 2026-09-13 — meter names moved aside
 - The GATE and COMP names now sit sideways in a gutter beside their arrows, so they never cover the IN
   meter bars. While you drag a line, its number shows above the column.
