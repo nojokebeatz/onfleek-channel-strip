@@ -149,6 +149,9 @@ w/scale x h/scale so it always fills the viewport. Column min-widths must sum to
   `makeEqEditable(canvas, W, H)` = dot drag (freq/gain), wheel (Q), dblclick (gain 0); `eqHot/eqDrag` drive the
   bigger dot + readout. Compact window is 620x290 now. Canvas DPR setup must come AFTER `const DPR`.
 
+- 2.10.1: save box has `#nameSelect` (Replace: <name> -> saves immediately on change). Screenshot helper:
+  `npx electron . --click=<elementId> --screenshot=x.png` clicks that element 300 ms after boot.
+
 ## Traps
 - Chromium hides device names until the mic permission is granted once — `unlockLabels()` does that.
 - `AudioContext.setSinkId('')` = default output; `'default'` id must be mapped to `''`.

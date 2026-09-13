@@ -292,3 +292,4 @@ select optgroup{color:#9a988f;font:700 11px var(--font);letter-spacing:1px;backg
 .c-preset{flex:1;min-width:0;display:flex}
 .c-preset select{flex:1;min-width:0;height:32px;padding:0 8px;border:1px solid #000;border-radius:3px;background:#101113;color:#e4e1d6;font:600 12px var(--font);color-scheme:dark}
 #strip[hidden]{display:none}
+.nameselect{margin-bottom:8px;color-scheme:dark;background:#101113;color:#e4e1d6}

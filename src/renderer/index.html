@@ -28,8 +28,9 @@
   <div id="nameBox" class="pinbox" hidden>
     <div class="pinbox-card">
       <div class="pinbox-title">SAVE PRESET</div>
-      <div class="pinbox-text">Give these settings a name. Use a name you already saved to replace it.</div>
-      <input id="nameInput" type="text" maxlength="32" autocomplete="off" placeholder="My voice" class="nameinput">
+      <div class="pinbox-text">Pick one of your saved presets to replace it, or type a new name below.</div>
+      <select id="nameSelect" class="nameinput nameselect"><option value="">New preset (type a name)</option></select>
+      <input id="nameInput" type="text" maxlength="32" autocomplete="off" placeholder="New name" class="nameinput">
       <div class="pinbox-btns"><button class="hintbtn" id="nameOk">SAVE</button><button class="tog wide" id="nameCancel">CANCEL</button></div>
     </div>
   </div>

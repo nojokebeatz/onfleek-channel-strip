@@ -364,7 +364,15 @@ function buildPresets() {
     state.userPresets[name] = snap; state.preset = 'u:' + name; fillPresetList(); save();
     flashLcd(`PRESET \u201c${name.toUpperCase()}\u201d ${replaced ? 'REPLACED' : 'SAVED'}`, 3000); log('preset saved: ' + name);
   };
-  $('#btnSavePreset').onclick = () => { nameInput.value = isUserPreset(state.preset) ? state.preset.slice(2) : ''; nameBox.hidden = false; setTimeout(() => { nameInput.focus(); nameInput.select(); }, 50); };
+  const nameSelect = $('#nameSelect');
+  $('#btnSavePreset').onclick = () => {
+    // dropdown of your saved presets: pick one to overwrite it, no typing needed
+    const mine = Object.keys(state.userPresets || {}).sort((a, b) => a.localeCompare(b)), cur = isUserPreset(state.preset) ? state.preset.slice(2) : '';
+    nameSelect.innerHTML = '<option value="">New preset (type a name)</option>' + mine.map(n => `<option value="${n.replace(/"/g, '&quot;')}">Replace: ${n.replace(/</g, '&lt;')}</option>`).join('');
+    nameSelect.value = cur; nameInput.value = cur; nameInput.placeholder = cur ? cur : 'New name';
+    nameBox.hidden = false; setTimeout(() => { if (mine.length && !cur) nameSelect.focus(); else { nameInput.focus(); nameInput.select(); } }, 50);
+  };
+  nameSelect.addEventListener('change', () => { nameInput.value = nameSelect.value; if (nameSelect.value) savePreset(); else { nameInput.focus(); } });
   $('#nameOk').onclick = savePreset; $('#nameCancel').onclick = () => { nameBox.hidden = true; };
   nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') savePreset(); if (e.key === 'Escape') nameBox.hidden = true; });
   $('#btnDelPreset').onclick = () => {
@@ -1142,6 +1150,7 @@ async function boot() {
     $('#logBox').hidden = false;
   };
   if (location.hash === '#shotlog') $('#verLabel').onclick();
+  if (location.hash.startsWith('#click=')) setTimeout(() => { const el = $('#' + location.hash.slice(7)); if (el) el.click(); }, 300);   // screenshot helper
   $('#logClose').onclick = () => { $('#logBox').hidden = true; };
   // Health ticker: audio clock vs wall clock once a second; counts on the LCD while running
   setInterval(() => {

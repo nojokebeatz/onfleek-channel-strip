@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.10.1 — 2026-09-13 — pick a preset to replace
+- SAVE now shows a dropdown of your saved presets. Pick one and it is replaced right away, no typing.
+  Leave it on "New preset" and type a name to make a new one.
+
 ## 2.10.0 — 2026-09-13 — six new presets for the Amazon USB mic
 Built from published podcast and streaming chains (Podigy's condenser-mic EQ tables, OBS filter guides,
 FIFINE's numbers) and what reviewers say about the Amazon Basics condenser: warm and rounded, hears the room.
