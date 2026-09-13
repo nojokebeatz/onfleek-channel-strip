@@ -152,6 +152,11 @@ w/scale x h/scale so it always fills the viewport. Column min-widths must sum to
 - 2.10.1: save box has `#nameSelect` (Replace: <name> -> saves immediately on change). Screenshot helper:
   `npx electron . --click=<elementId> --screenshot=x.png` clicks that element 300 ms after boot.
 
+- 2.11.0: skins = `src/renderer/modern.css`, every rule scoped to `body.modern`; `state.skin` ('classic'|'modern'),
+  `applySkin()` in boot, SKIN button / K key. Keep the classic font in the modern skin (a wider font overflows
+  the section headers); modern cards steal ~9 px per column, so `.sec` padding is 8 px and `.sec-btns` gap 4 px
+  there. `--shotmodern` flag for screenshots.
+
 ## Traps
 - Chromium hides device names until the mic permission is granted once — `unlockLabels()` does that.
 - `AudioContext.setSinkId('')` = default output; `'default'` id must be mapped to `''`.

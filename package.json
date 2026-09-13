@@ -1,7 +1,7 @@
 {
   "name": "onfleek-channel-strip",
   "productName": "OnFleek Channel Strip",
-  "version": "2.10.1",
+  "version": "2.11.0",
   "description": "SSL-style vocal channel strip for your USB microphone (gate/expander, compressor, 4-band EQ, filters, fader)",
   "main": "src/main.js",
   "author": "OnFleek",

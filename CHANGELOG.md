@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.11.0 — 2026-09-13 — MODERN skin
+- SKIN button (top bar, or press K) switches between the classic console plate and a modern look: deep
+  navy, rounded cards with thin blue borders, blue power dots on every section, white labels, blue numbers,
+  blue-glow readouts, blue ON buttons (red for MUTE, amber for BYPASS / LOCK). Works in COMPACT too. The
+  app remembers your choice.
+
 ## 2.10.1 — 2026-09-13 — pick a preset to replace
 - SAVE now shows a dropdown of your saved presets. Pick one and it is replaced right away, no typing.
   Leave it on "New preset" and type a name to make a new one.

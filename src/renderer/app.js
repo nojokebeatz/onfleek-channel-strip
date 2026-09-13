@@ -81,7 +81,7 @@ const PRESETS = {
 };
 
 /* ---------- state ---------- */
-const state = { params: DEFAULT_PARAMS(), inputId: '', outputId: '', phonesId: '', mon: 0, nr: 0, wantDefault: 0, prevDefaultMic: '', logPin: '', rangeMigrated: 0, userPresets: {}, preset: 'Voice – Natural', fast: 0, locked: false, compact: 0 };
+const state = { params: DEFAULT_PARAMS(), inputId: '', outputId: '', phonesId: '', mon: 0, nr: 0, wantDefault: 0, prevDefaultMic: '', logPin: '', rangeMigrated: 0, userPresets: {}, preset: 'Voice – Natural', fast: 0, locked: false, compact: 0, skin: 'classic' };
 let ctx = null, node = null, stream = null, running = false, version = '0.0.0';
 let monCtx = null, monNode = null, monStream = null, monGain = null, lastOuts = [], setupTimer = 0, defaults = null, prevDefault = '';
 let learning = false, runLcd = 'STANDBY', reconnectTimer = 0, lastIns = [], formats = null;
@@ -992,7 +992,7 @@ async function boot() {
   $$('[data-knob]').forEach(buildKnob); $$('[data-tog]').forEach(buildToggle); buildFader(); buildPresets();
   const saved = await window.cs.loadState();
   if (saved && !saved.params && saved.userPresets) state.userPresets = saved.userPresets;
-  if (saved && saved.params) { state.params = Object.assign(DEFAULT_PARAMS(), saved.params); state.inputId = saved.inputId || ''; state.phonesId = saved.phonesId || ''; state.mon = saved.mon ? 1 : 0; state.nr = saved.nr ? 1 : 0; state.logPin = saved.logPin || ''; state.userPresets = (saved.userPresets && typeof saved.userPresets === 'object') ? saved.userPresets : {}; state.wantDefault = saved.wantDefault ? 1 : 0; state.fast = saved.fast ? 1 : 0; state.compact = saved.compact ? 1 : 0; state.prevDefaultMic = saved.prevDefaultMic || ''; state.preset = saved.preset ?? 'Voice – Natural'; }
+  if (saved && saved.params) { state.params = Object.assign(DEFAULT_PARAMS(), saved.params); state.inputId = saved.inputId || ''; state.phonesId = saved.phonesId || ''; state.mon = saved.mon ? 1 : 0; state.nr = saved.nr ? 1 : 0; state.logPin = saved.logPin || ''; state.userPresets = (saved.userPresets && typeof saved.userPresets === 'object') ? saved.userPresets : {}; state.wantDefault = saved.wantDefault ? 1 : 0; state.fast = saved.fast ? 1 : 0; state.compact = saved.compact ? 1 : 0; state.skin = saved.skin === 'modern' ? 'modern' : 'classic'; state.prevDefaultMic = saved.prevDefaultMic || ''; state.preset = saved.preset ?? 'Voice – Natural'; }
   state.params.mute = 0; // never start muted
   // One-time fix-up: older versions shipped RANGE at 20 or 40 dB, which let a quiet copy of everything
   // through a closed gate. Move untouched values to FULL (dead silent) and say so once.
@@ -1062,6 +1062,11 @@ async function boot() {
   bootAnimation();
   // COMPACT view wiring
   makeEqEditable(cvE, EQW, EQH); makeEqEditable(cEq, CEQW, CEQH);
+  // SKIN: classic console plate or the modern navy look
+  const applySkin = () => { document.body.classList.toggle('modern', state.skin === 'modern'); drawCurve(); };
+  applySkin();
+  $('#btnSkin').onclick = () => { state.skin = state.skin === 'modern' ? 'classic' : 'modern'; applySkin(); save(); flashLcd(state.skin === 'modern' ? 'MODERN SKIN' : 'CLASSIC SKIN', 1500); log('skin ' + state.skin); };
+  if (location.hash === '#shotmodern') { state.skin = 'modern'; applySkin(); }
   $('#btnCompact').onclick = () => setCompact(true); $('#cExpand').onclick = () => setCompact(false);
   $('#cMin').onclick = () => window.cs.minimize(); $('#cClose').onclick = () => window.cs.close();
   $('#cMute').onclick = () => togEls.mute.click(); $('#cBypass').onclick = () => togEls.bypass.click();
@@ -1130,7 +1135,7 @@ async function boot() {
     if (e.ctrlKey && k === 's') { e.preventDefault(); $('#btnSavePreset').click(); return; }
     if (e.ctrlKey || e.altKey || e.metaKey) return;
     if (k === 'm') togEls.mute.click(); else if (k === 'b') togEls.bypass.click(); else if (k === 'r') $('#btnRec').click();
-    else if (k === 'p') $('#btnPlay').click(); else if (k === 'l') $('#btnLock').click(); else if (k === 'c') setCompact(!state.compact);
+    else if (k === 'p') $('#btnPlay').click(); else if (k === 'l') $('#btnLock').click(); else if (k === 'c') setCompact(!state.compact); else if (k === 'k') $('#btnSkin').click();
     else if (k === 'escape') { $('#shareBox').hidden = true; $('#logBox').hidden = true; }
   });
   // REC: 10 s of what goes INTO the strip (left) and what the cable GETS (right), as a WAV Claude can listen to

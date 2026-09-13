@@ -52,7 +52,7 @@ function createWindow() {
   win.setMenuBarVisibility(false);
   win.on('resize', rememberBounds); win.on('move', rememberBounds);
   win.on('close', (e) => { if (!quitting) { e.preventDefault(); win.hide(); } }); // X = hide to tray, keep processing
-  win.loadFile(path.join(__dirname, 'renderer', 'index.html'), process.argv.includes('--shotlog') ? { hash: 'shotlog' } : process.argv.includes('--shotcompact') ? { hash: 'shotcompact' } : (process.argv.find(a => a.startsWith('--click=')) ? { hash: 'click=' + process.argv.find(a => a.startsWith('--click=')).slice(8) } : {}));
+  win.loadFile(path.join(__dirname, 'renderer', 'index.html'), process.argv.includes('--shotlog') ? { hash: 'shotlog' } : process.argv.includes('--shotcompact') ? { hash: 'shotcompact' } : process.argv.includes('--shotmodern') ? { hash: 'shotmodern' } : (process.argv.find(a => a.startsWith('--click=')) ? { hash: 'click=' + process.argv.find(a => a.startsWith('--click=')).slice(8) } : {}));
 
   // Dev helper: --screenshot=<file.png> captures the UI and quits.
   const shot = process.argv.find(a => a.startsWith('--screenshot='));

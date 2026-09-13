@@ -1,0 +1,131 @@
+/* ============================================================================
+   MODERN skin. Everything here is scoped to body.modern, so the classic SSL
+   plate stays untouched. Toggle with the SKIN button (top bar) or press K.
+   Look: deep navy, rounded cards with thin blue borders, blue power dots,
+   white labels, blue numbers, blue-glow LCDs, blue ON buttons.
+   ========================================================================== */
+body.modern{
+  --plate1:#0c1222; --plate2:#070b16; --groove:#1a2540; --edge:rgba(90,140,255,.08);
+  --ink:#eef2ff; --ink-dim:#9fb0d8; --ink-faint:#6d7ea6;
+  --blue:#2f7cff; --blue2:#4da3ff; --cyan:#35d6ff;
+}
+body.modern,body.modern html{background:#05070d}
+body.modern #viewport{background:#05070d}
+body.modern #strip{background:radial-gradient(1200px 500px at 50% -10%,#14203d 0%,#0b1120 45%,#05070d 100%);box-shadow:none}
+body.modern #strip::before{display:none}
+
+/* top rail */
+body.modern .rail-top{background:linear-gradient(180deg,#0f1729,#0a1020);border-bottom:1px solid #1d2b4d;box-shadow:0 1px 0 rgba(77,163,255,.08)}
+body.modern .logo{color:#fff;text-shadow:0 0 12px rgba(77,163,255,.55),0 0 2px rgba(255,255,255,.4);font-style:italic}
+body.modern .model{color:#9fb0d8}
+body.modern .ver{color:#6d7ea6}
+body.modern .built{color:var(--blue2);text-shadow:0 0 8px rgba(77,163,255,.45)}
+body.modern .screw{background:#1a2540;box-shadow:inset 0 1px 2px #000;opacity:.6}
+body.modern .winbtns button{background:#131c30;border:1px solid #223258;color:#dfe7ff;border-radius:6px}
+body.modern .winbtns button:hover{background:#1a2744}
+body.modern .winbtns .upd.c-compact{background:linear-gradient(#6b4dff,#4a2fd6);border-color:#3a25a8}
+body.modern .winbtns .upd.c-share{background:linear-gradient(#2f7cff,#1f5fd6);border-color:#173f8f}
+body.modern .winbtns .upd.c-log{background:linear-gradient(#ff8a3d,#d9641a);border-color:#8a3d0c}
+body.modern .winbtns .upd.c-upd{background:linear-gradient(#2fd47a,#1fa85c);border-color:#0f6b3a}
+body.modern .winbtns .upd.c-skin{background:linear-gradient(#35d6ff,#1aa8d6);color:#03222e;border-color:#0c6c8c}
+
+/* columns -> floating cards */
+body.modern .plate{gap:4px;padding:3px 4px 3px}
+body.modern .col{min-width:300px;border:1px solid #1e2b4a;border-radius:10px;background:linear-gradient(180deg,rgba(20,30,58,.85),rgba(10,16,32,.9));box-shadow:0 10px 30px rgba(0,0,0,.45),inset 0 1px 0 rgba(120,170,255,.08)}
+body.modern .sec{border-top:1px solid #1a2540;box-shadow:none;padding:5px 8px 6px}
+body.modern .sec:first-child{border-top:0}
+body.modern .sec-title{color:#fff;letter-spacing:1.2px;font-weight:700;text-shadow:none;font-size:12.5px}
+body.modern .sec-btns{gap:4px}
+body.modern .sec-head{margin-bottom:2px}
+body.modern .sec-title::before{width:16px;height:16px;border-radius:50%;background:radial-gradient(circle at 50% 50%,#1b3f7a 0%,#12295a 60%,#0d1d40 100%);
+  box-shadow:0 0 0 1.5px var(--blue2),0 0 10px rgba(77,163,255,.7);margin-right:10px;vertical-align:-3px}
+body.modern .sec.off .sec-title::before{box-shadow:0 0 0 1.5px #3a4a70;background:#101a30}
+
+/* knobs: flat dark disc with a thin blue rim, white labels, blue numbers */
+body.modern .knob .body{background:radial-gradient(circle at 50% 45%,#1b2742 0%,#111a2e 70%,#0b1222 100%);
+  box-shadow:0 0 0 1.5px #2a3a62,0 6px 14px rgba(0,0,0,.6),inset 0 1px 0 rgba(120,170,255,.15)}
+body.modern .knob.active .body{box-shadow:0 0 0 1.5px var(--blue2),0 0 14px rgba(77,163,255,.45),0 6px 14px rgba(0,0,0,.6)}
+body.modern .knob .cap{box-shadow:inset 0 -3px 6px rgba(0,0,0,.5),inset 0 2px 3px rgba(255,255,255,.18),0 0 0 1px rgba(0,0,0,.7)}
+body.modern .knob .ptr{background:#fff;box-shadow:0 0 4px rgba(255,255,255,.6)}
+body.modern .knob .ring line{stroke:#7f9bd6;opacity:.75}
+body.modern .knob .lbl{color:#eef2ff;text-shadow:none;letter-spacing:1.2px}
+body.modern .knob .val{color:var(--blue2)}
+body.modern .knob.active .val,body.modern .knob:hover .val{color:#fff;text-shadow:0 0 6px rgba(77,163,255,.8)}
+body.modern .c-red{--cap:#c8332a}
+body.modern .c-green{--cap:#2f9a48}
+body.modern .c-blue{--cap:#2a63c9}
+body.modern .c-brown{--cap:#c56a1f}
+body.modern .c-black{--cap:#1a2338}
+body.modern .c-grey{--cap:#8d97ad}
+body.modern .c-cream{--cap:#d8dceb}
+body.modern .knobrow.band .knob .lbl{color:#eef2ff}
+
+/* on/off buttons: dark pill with blue border; ON = solid blue */
+body.modern .tog{background:#111a2e;border:1px solid #2a3a62;border-radius:7px;color:#dfe7ff;box-shadow:0 2px 6px rgba(0,0,0,.5);font-weight:700}
+body.modern .tog .lamp{background:#0a1224;box-shadow:inset 0 1px 2px rgba(0,0,0,.9);height:4px;top:5px;border-radius:2px}
+body.modern .tog.on{background:linear-gradient(#2f7cff,#1f5fd6);border-color:#4da3ff;color:#fff;box-shadow:0 0 12px rgba(47,124,255,.45),inset 0 1px 0 rgba(255,255,255,.25)}
+body.modern .tog.on .lamp{background:#fff;box-shadow:0 0 8px rgba(255,255,255,.8)}
+body.modern .tog[data-tog="mute"].on,body.modern #cMute.on{background:linear-gradient(#ff4d42,#d62a20);border-color:#ff8a80;box-shadow:0 0 12px rgba(255,59,48,.5)}
+body.modern .tog[data-tog="bypass"].on,body.modern #cBypass.on,body.modern #btnLock.on,body.modern #cLock.on{background:linear-gradient(#ffb02e,#d98a12);border-color:#ffd27a;color:#2a1a00;box-shadow:0 0 12px rgba(255,176,46,.45)}
+body.modern .tog:disabled{opacity:.4}
+body.modern .pwr{background:#111a2e;border:1px solid #2a3a62;border-radius:7px;color:#dfe7ff}
+body.modern .pwr.on{background:linear-gradient(#2fd47a,#1fa85c);border-color:#6ff0a6;color:#03200e;transform:none;box-shadow:0 0 12px rgba(47,212,122,.4)}
+body.modern .hintbtn{background:linear-gradient(#2f7cff,#1f5fd6);color:#fff;border:1px solid #4da3ff;border-radius:7px;box-shadow:0 2px 8px rgba(47,124,255,.35)}
+body.modern .hintbtn:hover{filter:brightness(1.1)}
+body.modern .led{background:#0a1224;box-shadow:inset 0 1px 2px #000,0 0 0 1px #223258}
+body.modern .ledlabel,body.modern .tiny,body.modern .patch span{color:#9fb0d8}
+
+/* LCDs: navy glass with cyan text */
+body.modern .lcd,body.modern .lcdsmall{background:linear-gradient(#0a1428,#060c1a);border:1px solid #1e2f58;border-radius:7px;color:var(--cyan);text-shadow:0 0 6px rgba(53,214,255,.55);box-shadow:inset 0 1px 6px rgba(0,0,0,.8),0 0 0 1px rgba(53,214,255,.06)}
+body.modern .lcd.err{color:#ff6b61;text-shadow:0 0 6px rgba(255,90,78,.6)}
+body.modern .lcdsmall.good{color:#5dff9a}
+body.modern .lcdsmall.quiet{color:#ffcc66}
+body.modern .lcdsmall.loud{color:#ff6b61}
+body.modern .lcdsmall.gatecut{color:var(--cyan)}
+body.modern .grbig{color:var(--cyan);text-shadow:0 0 8px rgba(53,214,255,.6)}
+
+/* dropdowns, checklist, hint */
+body.modern select{background:#0d1528;border:1px solid #223258;border-radius:7px;color:#eef2ff}
+body.modern select:focus{border-color:var(--blue2)}
+body.modern select option{background:#0d1528;color:#eef2ff}
+body.modern select option:checked{background:#1f3f80;color:#fff}
+body.modern select optgroup{background:#0a1020;color:#9fb0d8}
+body.modern .check{background:rgba(10,16,34,.7);border:1px solid #1a2540;border-radius:8px;box-shadow:none;min-height:32px;padding:3px 8px}
+body.modern .hint{padding:4px 8px;margin-top:3px}
+body.modern .ck-name{color:#fff}
+body.modern .ck-text{color:#9fb0d8}
+body.modern .hint{border:1px dashed #2a4a8a;background:rgba(47,124,255,.08);color:#bcd0ff;border-radius:8px}
+body.modern .hint a{color:#7fc0ff}
+body.modern .knobrow.band{border-radius:8px}
+body.modern .bandtag{border-radius:6px}
+body.modern .eqcurve,body.modern .c-eq{border:1px solid #1e2f58;border-radius:8px;background:#070d1c}
+
+/* fader + VOX */
+body.modern .ftrack{background:linear-gradient(90deg,#050914,#0f182c 40%,#070c18);box-shadow:inset 0 0 0 1px #1e2f58}
+body.modern .fcap{background:linear-gradient(180deg,#dfe7ff,#9fb0d8 50%,#6d7ea6);border-radius:6px;box-shadow:0 0 0 1px #223258,0 6px 12px rgba(0,0,0,.7)}
+body.modern .fcap.active{box-shadow:0 0 0 1px var(--blue2),0 0 16px rgba(77,163,255,.6),0 6px 12px rgba(0,0,0,.7)}
+body.modern .fscale span{color:#9fb0d8}
+body.modern .fscale .zero{color:var(--blue2)}
+body.modern .fader .detent{background:rgba(77,163,255,.7)}
+body.modern .scribble{background:#0a1224;border:1.5px solid var(--blue2);border-radius:8px;box-shadow:0 0 14px rgba(77,163,255,.45),inset 0 0 12px rgba(47,124,255,.25)}
+body.modern .scribble span{color:#fff;text-shadow:0 0 10px rgba(77,163,255,.9);font-family:var(--font);font-weight:800;letter-spacing:4px}
+body.modern #meters,body.modern .c-meters{background:#070d1c;border-radius:8px}
+
+/* boxes */
+body.modern .pinbox{background:rgba(3,6,14,.7)}
+body.modern .pinbox-card{background:linear-gradient(180deg,#131d36,#0b1224);border:1px solid #2a3a62;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.8)}
+body.modern .pinbox-title{color:#fff}
+body.modern .pinbox-text{color:#9fb0d8}
+body.modern .nameinput,body.modern #shareLink{background:#0a1224;border:1px solid #223258;border-radius:7px;color:#eef2ff}
+body.modern .logtext{background:#070d1c;color:#c9d4f5;border:1px solid #1e2f58;border-radius:8px}
+body.modern .logtext b{color:var(--blue2)}
+body.modern #shareCopied{color:var(--cyan)}
+body.modern #updateBar{background:linear-gradient(#2f7cff,#1f5fd6);color:#fff}
+
+/* compact strip */
+body.modern #compact{background:radial-gradient(800px 300px at 50% -20%,#14203d 0%,#0b1120 50%,#05070d 100%)}
+body.modern .c-rail{background:linear-gradient(180deg,#0f1729,#0a1020);border-bottom:1px solid #1d2b4d}
+body.modern .c-brand{color:#fff;text-shadow:0 0 10px rgba(77,163,255,.5)}
+body.modern .c-win button{background:#131c30;border:1px solid #223258;color:#dfe7ff;border-radius:6px}
+body.modern .c-win #cExpand{background:linear-gradient(#6b4dff,#4a2fd6);border-color:#3a25a8}
+body.modern .c-preset select{border-radius:7px}
