@@ -54,6 +54,29 @@ const PRESETS = {
     lfFreq: 90, lfGain: 1, lmfFreq: 400, lmfGain: -3, lmfQ: 1.4, hmfFreq: 3500, hmfGain: 3, hmfQ: 0.8, hfFreq: 12000, hfGain: 2.5 },
   'Streaming – Tight Gate': { hpf: 100, gateExp: 0, gateThresh: -38, gateRange: 40, gateAttack: 0.5, gateHold: 80, gateRelease: 100,
     compThresh: -20, compRatio: 3, compAttack: 8, compRelease: 150, compMakeup: 6, lmfFreq: 300, lmfGain: -2, hmfFreq: 4000, hmfGain: 2, hfFreq: 12000, hfGain: 2 },
+  // ---- Amazon USB mic set (2.10.0). Built from published podcast / streaming chains: Podigy's condenser
+  // "interview" EQ (HPF 80, -3 @240, -2 @350, +1.5 @2.5k, +1.5 shelf 9k, LPF 15k), OBS filter guides
+  // (gate hold 250 / release 200, comp 3-4:1 thr -15..-23 atk 1-6 rel 25-100, limiter), and the rule
+  // "cut mud before boosting presence". Amazon Basics condenser = warm/rounded, hears the room, so every
+  // one of these gates, cuts 200-350 Hz, and de-esses. ----
+  'Podcast – Amazon USB': { hpf: 85, lpf: 15000, gateExp: 1, gateThresh: -46, gateRange: 80, gateAttack: 1, gateHold: 250, gateRelease: 200,
+    compThresh: -20, compRatio: 3, compAttack: 5, compRelease: 80, compMakeup: 5, compMix: 100, deIn: 1, deFreq: 6500, deAmt: 45,
+    lfFreq: 120, lfGain: 1.5, lfBell: 0, lmfFreq: 240, lmfGain: -3, lmfQ: 1.2, hmfFreq: 2500, hmfGain: 1.5, hmfQ: 0.9, hfFreq: 9000, hfGain: 1.5, hfBell: 0, limIn: 1 },
+  'Webinar – Clear Speech': { hpf: 100, lpf: 12000, gateExp: 1, gateThresh: -42, gateRange: 80, gateAttack: 1, gateHold: 200, gateRelease: 150,
+    compThresh: -18, compRatio: 4, compAttack: 3, compRelease: 60, compMakeup: 6, compMix: 100, deIn: 1, deFreq: 7000, deAmt: 40,
+    lfFreq: 100, lfGain: -1, lfBell: 0, lmfFreq: 350, lmfGain: -2, lmfQ: 0.8, hmfFreq: 3000, hmfGain: 2.5, hmfQ: 1, hfFreq: 8000, hfGain: 1, hfBell: 0, limIn: 1 },
+  'Studio – Broadcast Pro': { hpf: 75, lpf: 16000, gateExp: 1, gateThresh: -48, gateRange: 80, gateAttack: 1, gateHold: 250, gateRelease: 250,
+    compThresh: -24, compRatio: 4, compAttack: 8, compRelease: 120, compMakeup: 8, compMix: 100, deIn: 1, deFreq: 6000, deAmt: 50,
+    lfFreq: 110, lfGain: 2, lfBell: 0, lmfFreq: 260, lmfGain: -2.5, lmfQ: 1.2, hmfFreq: 3500, hmfGain: 2, hmfQ: 1.1, hfFreq: 10000, hfGain: 2, hfBell: 0, limIn: 1 },
+  'Radio – Deep & Warm': { hpf: 60, lpf: 14000, gateExp: 1, gateThresh: -48, gateRange: 80, gateAttack: 1, gateHold: 250, gateRelease: 250,
+    compThresh: -22, compRatio: 3, compAttack: 10, compRelease: 150, compMakeup: 7, compMix: 100, deIn: 1, deFreq: 6500, deAmt: 40,
+    lfFreq: 120, lfGain: 3, lfBell: 1, lmfFreq: 300, lmfGain: -1.5, lmfQ: 1, hmfFreq: 2500, hmfGain: 1, hmfQ: 1, hfFreq: 12000, hfGain: 1, hfBell: 0, limIn: 1 },
+  'Crisp – Bright Detail': { hpf: 100, lpf: 18000, gateExp: 1, gateThresh: -45, gateRange: 80, gateAttack: 1, gateHold: 200, gateRelease: 150,
+    compThresh: -18, compRatio: 3, compAttack: 4, compRelease: 70, compMakeup: 5, compMix: 100, deIn: 1, deFreq: 7000, deAmt: 55,
+    lfFreq: 100, lfGain: -2, lfBell: 0, lmfFreq: 400, lmfGain: -2, lmfQ: 1, hmfFreq: 4000, hmfGain: 3, hmfQ: 0.9, hfFreq: 10000, hfGain: 3, hfBell: 0, limIn: 1 },
+  'Noisy Room – Tight': { hpf: 120, lpf: 10000, gateExp: 0, gateThresh: -38, gateRange: 80, gateAttack: 0.5, gateHold: 80, gateRelease: 100,
+    compThresh: -16, compRatio: 4, compAttack: 2, compRelease: 50, compMakeup: 5, compMix: 100, deIn: 1, deFreq: 6500, deAmt: 40,
+    lfFreq: 100, lfGain: 0, lfBell: 0, lmfFreq: 500, lmfGain: -2, lmfQ: 1, hmfFreq: 3000, hmfGain: 2, hmfQ: 1, hfFreq: 9000, hfGain: 0.5, hfBell: 0, limIn: 1 },
   'Flat (all out)': { filtersIn: 0, gateIn: 0, compIn: 0, eqIn: 0, hpf: 20, lpf: 20000, hfGain: 0, hmfGain: 0, lmfGain: 0, lfGain: 0, compMakeup: 0, trim: 0, fader: 0 }
 };
 

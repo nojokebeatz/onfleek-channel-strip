@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.10.0 — 2026-09-13 — six new presets for the Amazon USB mic
+Built from published podcast and streaming chains (Podigy's condenser-mic EQ tables, OBS filter guides,
+FIFINE's numbers) and what reviewers say about the Amazon Basics condenser: warm and rounded, hears the room.
+Every one of these gates the room, cuts the 200-350 Hz mud, adds presence, de-esses, and limits.
+- Podcast – Amazon USB: the balanced starting point.
+- Webinar – Clear Speech: extra clarity at 3 kHz, firmer compression, tighter gate. For talks.
+- Studio – Broadcast Pro: fullest sound, every tool working. Deeper compression, warm low end, 10 kHz air.
+- Radio – Deep & Warm: big low end, gentle top. Late-night radio voice.
+- Crisp – Bright Detail: lots of top-end sparkle with a strong de-esser to keep S sounds tame.
+- Noisy Room – Tight: hard gate, narrow band, fast compressor. For fans, AC and family noise.
+
 ## 2.9.1 — 2026-09-13 — drag the EQ dots, compact gets EQ + gate/comp lines
 - The EQ curve is now hands-on: drag a colored dot left/right for FREQ and up/down for GAIN. Mouse wheel
   on a dot changes Q (LMF and HMF). Double-click a dot sets its gain to 0. Hold Shift for fine moves.
