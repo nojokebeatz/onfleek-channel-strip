@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.12.0 — 2026-09-13 — speaker guard: your speakers are never changed
+- New SOUND row in SETUP. It shows where your PC sound goes right now ("Your sound still goes to
+  Speakers (Realtek)..."). If Windows ever points your sound at the cable (VB-CABLE's installer does this on
+  some PCs, which means no sound and every PC noise going into your mic), the app puts your real speakers
+  back by itself and tells you. It checks at start, whenever a device is plugged or unplugged, and every
+  5 minutes. A PUT BACK button appears only if it needs your help.
+- The app no longer renames anything on the speaker side at all. NAME IT only names the mic ("Virtual Mic
+  Out"). The old "Virtual Mic Feed" name is still recognized if you already have it.
+- The app can never set a cable as your speakers: that call refuses any device whose name or maker says
+  cable, Voicemeeter or VB-Audio.
+- Shorter SETUP wording.
+
 ## 2.11.1 — 2026-09-13 — safety fix: never touch real speakers
 - An owner reported real speakers disappearing from Windows' output list after using SETUP. We could not
   reproduce it, but found and closed a real weak spot: the rename and FIX RATE tools that touch the

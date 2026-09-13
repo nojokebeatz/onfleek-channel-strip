@@ -163,6 +163,13 @@ w/scale x h/scale so it always fills the viewport. Column min-widths must sum to
   every subkey). Root cause of the 09-13 "cleared my speakers" report was never confirmed (no log was
   captured) - this is defense in depth, not a proven fix. If it recurs, get SEND LOG first.
 
+- 2.12.0 SPEAKER GUARD: `audio-default.ps1` modes `outget` / `outlist` / `outset <id>` (Render default, role
+  0/1/2; outset REFUSES ids whose name+adapter match cable|voicemeeter|virtual mic|vb-audio and inactive ids).
+  app.js `speakerGuard(reason)` runs at boot, on devicechange, every 5 min, and from the SOUND row's PUT BACK:
+  real default -> remembered in `state.speakerId/Name`; cable default -> restore remembered or first real.
+  `mic:rename` now REFUSES flow 'render' outright; NAME IT no longer renames "CABLE Input". Policy from the
+  owner (09-13): the app must NEVER touch a person's speakers; keep SETUP simple (mic in, name the output).
+
 ## Traps
 - Chromium hides device names until the mic permission is granted once — `unlockLabels()` does that.
 - `AudioContext.setSinkId('')` = default output; `'default'` id must be mapped to `''`.

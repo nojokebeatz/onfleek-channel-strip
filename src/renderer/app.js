@@ -81,7 +81,7 @@ const PRESETS = {
 };
 
 /* ---------- state ---------- */
-const state = { params: DEFAULT_PARAMS(), inputId: '', outputId: '', phonesId: '', mon: 0, nr: 0, wantDefault: 0, prevDefaultMic: '', logPin: '', rangeMigrated: 0, userPresets: {}, preset: 'Voice – Natural', fast: 0, locked: false, compact: 0, skin: 'classic' };
+const state = { params: DEFAULT_PARAMS(), inputId: '', outputId: '', phonesId: '', mon: 0, nr: 0, wantDefault: 0, prevDefaultMic: '', logPin: '', rangeMigrated: 0, userPresets: {}, preset: 'Voice – Natural', fast: 0, locked: false, compact: 0, skin: 'classic', speakerId: '', speakerName: '' };
 let ctx = null, node = null, stream = null, running = false, version = '0.0.0';
 let monCtx = null, monNode = null, monStream = null, monGain = null, lastOuts = [], setupTimer = 0, defaults = null, prevDefault = '';
 let learning = false, runLcd = 'STANDBY', reconnectTimer = 0, lastIns = [], formats = null;
@@ -415,7 +415,7 @@ function renderSetup() {
   const vm = !!cab && /voicemeeter/i.test(cab.label);
   if (cab && !vm) setCheck('ckCable', true, 'VB-CABLE installed. This is the pretend mic that carries your cleaned-up voice.');
   else if (vm) setCheck('ckCable', false, 'Using Voicemeeter’s cable for now. It only carries sound while Voicemeeter is open. Press INSTALL CABLE for the simple one that always works.');
-  else setCheck('ckCable', false, 'No pretend mic yet. Press INSTALL CABLE (one time, then restart the PC).');
+  else setCheck('ckCable', false, 'Press INSTALL CABLE once, then restart the PC.');
   $('#cableHint').hidden = !!cab;
   // 2. NAME
   const from = cab ? otherAppsMic(cab.label) : '';
@@ -472,6 +472,34 @@ function renderFormatRow(cab) {
   setCheck('ckFormat', false, `The two cable sides do not match (feed ${feed.rate} Hz ${feed.bits}-bit, mic ${mic.rate} Hz ${mic.bits}-bit). That makes crackle. Press FIX RATE to set both to ${CABLE_RATE} Hz.`);
 }
 async function refreshFormats() { formats = await window.cs.audioFormats(); log('formats: ' + JSON.stringify(formats)); renderSetup(); }
+/* ---------- SPEAKER GUARD ----------
+   The app must never take a person's speakers away. VB-CABLE's own installer sometimes makes "CABLE Input"
+   the Windows default playback device, which means: no sound, and every PC noise goes into the mic feed.
+   This remembers the real speakers, and if Windows ever points at a cable, points it straight back. */
+let spkBusy = false;
+const cableName = (name, adapter) => /cable|voicemeeter|virtual mic|vb-audio/i.test((name || '') + ' ' + (adapter || ''));
+async function speakerGuard(reason) {
+  if (spkBusy) return; spkBusy = true;
+  try {
+    const out = await window.cs.audioOutGet();
+    if (!out || out.error) { setCheck('ckSpk', false, 'Could not read your speakers: ' + (out && out.error || '?')); $('#btnSpk').hidden = true; return; }
+    if (!out.id) { setCheck('ckSpk', false, 'Windows has no playback device turned on right now.'); $('#btnSpk').hidden = true; return; }
+    if (!out.cable) {
+      // good: a real speaker. Remember it so we can put it back later.
+      if (state.speakerId !== out.id) { state.speakerId = out.id; state.speakerName = out.name; save(); log('speakers remembered: ' + out.name + ' [' + out.id + ']'); }
+      setCheck('ckSpk', true, `Your sound still goes to "${out.name}". This app never changes that.`); $('#btnSpk').hidden = true; return;
+    }
+    // Windows is pointing at a cable -> put the real speakers back
+    log(`SPEAKER GUARD (${reason}): default playback is a cable "${out.name}" - restoring`);
+    const list = await window.cs.audioOutList(); const real = Array.isArray(list) ? list.filter(d => !d.cable) : [];
+    const target = real.find(d => d.id === state.speakerId) || real[0];
+    if (!target) { setCheck('ckSpk', false, `Windows sends sound to "${out.name}" (a cable) and shows no real speakers. Plug in / turn on your speakers or headphones, then press PUT BACK.`); $('#btnSpk').hidden = false; return; }
+    const r = await window.cs.audioOutSet(target.id); log('speaker restore -> ' + target.name + ': ' + r);
+    if (/^OUTSET/.test(r)) { state.speakerId = target.id; state.speakerName = target.name; save(); setCheck('ckSpk', true, `Put your sound back on "${target.name}" (VB-CABLE had moved it).`); $('#btnSpk').hidden = true; flashLcd(`SPEAKERS PUT BACK: ${target.name.toUpperCase()}`, 5000); }
+    else { setCheck('ckSpk', false, `Windows sends sound to "${out.name}" (a cable). Could not switch it back: ${String(r).slice(0, 40)}. Pick your speakers in Windows Sound settings.`); $('#btnSpk').hidden = false; }
+  } catch (e) { log('speaker guard error: ' + (e.message || e)); }
+  finally { spkBusy = false; }
+}
 async function refreshDefaults() { defaults = await window.cs.audioDefaults(); log('windows default mic: ' + JSON.stringify(defaults)); renderSetup(); }
 async function refreshDevices() {
   const devs = await navigator.mediaDevices.enumerateDevices();
@@ -992,7 +1020,7 @@ async function boot() {
   $$('[data-knob]').forEach(buildKnob); $$('[data-tog]').forEach(buildToggle); buildFader(); buildPresets();
   const saved = await window.cs.loadState();
   if (saved && !saved.params && saved.userPresets) state.userPresets = saved.userPresets;
-  if (saved && saved.params) { state.params = Object.assign(DEFAULT_PARAMS(), saved.params); state.inputId = saved.inputId || ''; state.phonesId = saved.phonesId || ''; state.mon = saved.mon ? 1 : 0; state.nr = saved.nr ? 1 : 0; state.logPin = saved.logPin || ''; state.userPresets = (saved.userPresets && typeof saved.userPresets === 'object') ? saved.userPresets : {}; state.wantDefault = saved.wantDefault ? 1 : 0; state.fast = saved.fast ? 1 : 0; state.compact = saved.compact ? 1 : 0; state.skin = saved.skin === 'modern' ? 'modern' : 'classic'; state.prevDefaultMic = saved.prevDefaultMic || ''; state.preset = saved.preset ?? 'Voice – Natural'; }
+  if (saved && saved.params) { state.params = Object.assign(DEFAULT_PARAMS(), saved.params); state.inputId = saved.inputId || ''; state.phonesId = saved.phonesId || ''; state.mon = saved.mon ? 1 : 0; state.nr = saved.nr ? 1 : 0; state.logPin = saved.logPin || ''; state.userPresets = (saved.userPresets && typeof saved.userPresets === 'object') ? saved.userPresets : {}; state.wantDefault = saved.wantDefault ? 1 : 0; state.fast = saved.fast ? 1 : 0; state.compact = saved.compact ? 1 : 0; state.skin = saved.skin === 'modern' ? 'modern' : 'classic'; state.speakerId = saved.speakerId || ''; state.speakerName = saved.speakerName || ''; state.prevDefaultMic = saved.prevDefaultMic || ''; state.preset = saved.preset ?? 'Voice – Natural'; }
   state.params.mute = 0; // never start muted
   // One-time fix-up: older versions shipped RANGE at 20 or 40 dB, which let a quiet copy of everything
   // through a closed gate. Move untouched values to FULL (dead silent) and say so once.
@@ -1024,8 +1052,6 @@ async function boot() {
       const cab = cableOut(); const key = cab ? familyKey(cab.label) : '';
       for (const st of strayMics()) { try { await window.cs.renameMic(MIC_NAME, 'Unused Virtual Mic', 'capture', familyKey(st.label)); } catch {} }
       const r = await window.cs.renameMic(from, MIC_NAME, 'capture', key); log('NAME IT ' + from + ' -> ' + MIC_NAME + ' [' + key + ']: ' + r);
-      const feedFrom = cab ? (cab.label || '').replace(/\s*\(.*$/, '') : '';
-      if (cab && /^cable input$/i.test(feedFrom)) { try { await window.cs.renameMic(feedFrom, FEED_NAME, 'render', key); } catch {} }
       const ok = /RENAMED [1-9]/.test(r);
       await refreshDevices(); await refreshDefaults();
       if (ok) flashLcd(`DONE \u00b7 WINDOWS NOW CALLS IT \u201c${MIC_NAME.toUpperCase()}\u201d`, 4000);
@@ -1211,7 +1237,9 @@ async function boot() {
     }
     else lcd(/NOTFOUND/.test(r) ? `WINDOWS CANNOT SEE \u201c${want}\u201d YET \u00b7 RESTART THE PC` : 'COULD NOT SET DEFAULT: ' + String(r).slice(0, 50), true);
   };
-  navigator.mediaDevices.addEventListener('devicechange', () => { refreshDevices(); clearTimeout(setupTimer); setupTimer = setTimeout(() => { refreshDefaults(); refreshFormats(); }, 1500); });
+  navigator.mediaDevices.addEventListener('devicechange', () => { refreshDevices(); clearTimeout(setupTimer); setupTimer = setTimeout(() => { refreshDefaults(); refreshFormats(); speakerGuard('device change'); }, 1500); });
+  $('#btnSpk').onclick = () => speakerGuard('PUT BACK button');
+  setInterval(() => speakerGuard('timer'), 5 * 60 * 1000);
   window.addEventListener('resize', fit); fit();
   requestAnimationFrame(loop);
   await unlockLabels(); await refreshDevices();
@@ -1219,6 +1247,7 @@ async function boot() {
   if (rangeNote) { save(); flashLcd(rangeNote, 6000); log(rangeNote); }
   await refreshDefaults();
   refreshFormats();
+  speakerGuard('boot');
   $('#btnFormat').onclick = async () => {
     const cab = cableOut(); if (!cab) return;
     const key = familyKey(cab.label), feedName = (cab.label || '').replace(/\s*\(.*$/, '');

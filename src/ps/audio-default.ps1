@@ -38,10 +38,12 @@ namespace OnFleekAudio {
     [PreserveSig] int SetEndpointVisibility([MarshalAs(UnmanagedType.LPWStr)] string dev, bool visible);
   }
   public static class Api {
-    public static string DefaultCaptureId(int role) {
+    public static string DefaultCaptureId(int role) { return DefaultId(1, role); }
+    public static string DefaultRenderId(int role) { return DefaultId(0, role); }   // 0 = eRender (speakers)
+    public static string DefaultId(int flow, int role) {
       try {
         var e = (IMMDeviceEnumerator)new MMDeviceEnumeratorCom(); IMMDevice d; string id = "";
-        if (e.GetDefaultAudioEndpoint(1, role, out d) == 0 && d != null) d.GetId(out id);
+        if (e.GetDefaultAudioEndpoint(flow, role, out d) == 0 && d != null) d.GetId(out id);
         return id;
       } catch (Exception) { return ""; }
     }
@@ -65,26 +67,55 @@ $fn   = '{a45c254e-df1c-4efd-8020-67d146a850e0},14'
 $adap = '{b3f8fa53-0004-438e-9003-51a46e139bfc},6'
 $root = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Capture'
 function Plain([string]$s) { if (-not $s) { return '' }; if ($s.StartsWith('@')) { $i = $s.LastIndexOf(';'); if ($i -ge 0) { $s = $s.Substring($i + 1) } }; return $s.Trim() }
-function NameOf([string]$id) {
-  if (-not $id) { return '' }
-  $g = $id -replace '^\{0\.0\.1\.00000000\}\.', ''
-  $p = Join-Path (Join-Path $root $g) 'Properties'
-  if (Test-Path $p) { $v = Get-ItemProperty $p; if ($v.$desc) { return Plain([string]$v.$desc) } }
-  return $id
+$rootRender = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Render'
+function PropsOf([string]$id) { # registry Properties key for an endpoint id, either flow
+  if (-not $id) { return $null }
+  $r = if ($id.StartsWith('{0.0.0.')) { $rootRender } else { $root }
+  $g = $id -replace '^\{0\.0\.[01]\.00000000\}\.', ''
+  $p = Join-Path (Join-Path $r $g) 'Properties'
+  if (Test-Path $p) { return Get-ItemProperty $p }; return $null
 }
-function AdapterOf([string]$id) {
-  if (-not $id) { return '' }
-  $g = $id -replace '^\{0\.0\.1\.00000000\}\.', ''
-  $p = Join-Path (Join-Path $root $g) 'Properties'
-  if (Test-Path $p) { $v = Get-ItemProperty $p; if ($v.$adap) { return Plain([string]$v.$adap) } }
-  return ''
-}
+function NameOf([string]$id) { $v = PropsOf $id; if ($v -and $v.$desc) { return Plain([string]$v.$desc) }; if ($id) { return $id }; return '' }
+function AdapterOf([string]$id) { $v = PropsOf $id; if ($v -and $v.$adap) { return Plain([string]$v.$adap) }; return '' }
+function J([string]$t) { return ([string]$t).Replace('\\', '\\\\').Replace('"', '') }
+# A "cable" is any virtual playback device that feeds a mic: VB-CABLE, Voicemeeter, our renamed feed.
+function LooksLikeCable([string]$name, [string]$adapter) { return (($name + ' ' + $adapter) -match '(?i)cable|voicemeeter|virtual mic|vb-audio') }
 if ($Mode -eq 'get') {
   $ids = @([OnFleekAudio.Api]::DefaultCaptureId(0), [OnFleekAudio.Api]::DefaultCaptureId(1), [OnFleekAudio.Api]::DefaultCaptureId(2))
   $j = @{ console = NameOf($ids[0]); consoleAdapter = AdapterOf($ids[0]); multimedia = NameOf($ids[1]); multimediaAdapter = AdapterOf($ids[1]); communications = NameOf($ids[2]); communicationsAdapter = AdapterOf($ids[2]) }
   $parts = @(); foreach ($k in 'console','consoleAdapter','multimedia','multimediaAdapter','communications','communicationsAdapter') { $parts += ('"' + $k + '":"' + ([string]$j[$k]).Replace('\\','\\\\').Replace('"','') + '"') }
   '{' + ($parts -join ',') + '}'
   exit 0
+}
+# ---- speakers: which playback device Windows uses for everything (role 0 = console) ----
+if ($Mode -eq 'outget') {
+  $id = [OnFleekAudio.Api]::DefaultRenderId(0); $n = NameOf($id); $a = AdapterOf($id)
+  '{"id":"' + (J $id) + '","name":"' + (J $n) + '","adapter":"' + (J $a) + '","cable":' + $(if (LooksLikeCable $n $a) { 'true' } else { 'false' }) + '}'
+  exit 0
+}
+if ($Mode -eq 'outlist') {
+  $out = @()
+  foreach ($k in Get-ChildItem $rootRender) {
+    $p = Join-Path $k.PSPath 'Properties'; if (-not (Test-Path $p)) { continue }
+    if ((Get-ItemProperty $k.PSPath).DeviceState -ne 1) { continue }
+    $v = Get-ItemProperty $p; $n = Plain([string]$v.$desc); $a = Plain([string]$v.$adap)
+    $out += ('{"id":"{0.0.0.00000000}.' + $k.PSChildName + '","name":"' + (J $n) + '","adapter":"' + (J $a) + '","cable":' + $(if (LooksLikeCable $n $a) { 'true' } else { 'false' }) + '}')
+  }
+  '[' + ($out -join ',') + ']'
+  exit 0
+}
+if ($Mode -eq 'outset') {
+  # $Name = the endpoint id of a REAL playback device. We only ever point Windows at real speakers,
+  # never at a cable, and only at a device that is active right now.
+  $id = $Name
+  if (-not $id.StartsWith('{0.0.0.')) { Write-Output "BADID $id"; exit 2 }
+  $g = $id -replace '^\{0\.0\.0\.00000000\}\.', ''
+  $k = Join-Path $rootRender $g
+  if (-not (Test-Path $k) -or (Get-ItemProperty $k).DeviceState -ne 1) { Write-Output "NOTACTIVE $id"; exit 2 }
+  $n = NameOf($id); $a = AdapterOf($id)
+  if (LooksLikeCable $n $a) { Write-Output "REFUSED cable $n"; exit 4 }
+  foreach ($r in 0, 1, 2) { $hr = [OnFleekAudio.Api]::SetDefault($id, $r); if ($hr -ne 0) { Write-Output ("FAILED role $r hr=0x{0:X8}" -f $hr); exit 3 } }
+  Write-Output "OUTSET $n"; exit 0
 }
 if ($Mode -eq 'set') {
   $hit = $null

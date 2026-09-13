@@ -127,6 +127,8 @@ const runPSOut = (args) => new Promise((resolve, reject) => {
   });
 });
 ipcMain.handle('mic:rename', async (e, from, to, flow, adapter) => {
+  // 2.12.0: the app never renames anything on the speaker (Render) side any more. Only the mic side.
+  if (flow === 'render') { logLine('main', 'rename on the speaker side refused (policy): ' + from + ' -> ' + to); return 'REFUSED render'; }
   const esc = s => String(s).replace(/'/g, "''").replace(/[\r\n]/g, '');
   const branch = flow === 'render' ? 'Render' : 'Capture';   // Capture = mic side, Render = speaker side
   // SPEAKER-SIDE SAFETY NET: a rename here can silence real speakers, so the render branch is far
@@ -191,6 +193,20 @@ app.on('before-quit', (e) => {
   if (restoredOnQuit || !defaultMemo.prev || !defaultMemo.want) return;
   restoredOnQuit = true; e.preventDefault();
   runPSOut(['-File', defaultsScript(), 'set', defaultMemo.prev]).catch(() => {}).finally(() => app.quit());
+});
+// Speaker guard: read / list / restore the Windows default PLAYBACK device. The app never sets a cable as
+// the speaker; it only ever puts a real speaker back if something (VB-CABLE's installer, usually) moved it.
+ipcMain.handle('audio:outGet', async () => {
+  try { const out = await runPSOut(['-File', defaultsScript(), 'outget']); return JSON.parse(out.trim().split(/\r?\n/).pop()); }
+  catch (e) { return { error: String(e.message || e).slice(0, 120) }; }
+});
+ipcMain.handle('audio:outList', async () => {
+  try { const out = await runPSOut(['-File', defaultsScript(), 'outlist']); return JSON.parse(out.trim().split(/\r?\n/).pop()); }
+  catch (e) { return { error: String(e.message || e).slice(0, 120) }; }
+});
+ipcMain.handle('audio:outSet', async (e, id) => {
+  try { return await runPSOut(['-File', defaultsScript(), 'outset', String(id || '')]); }
+  catch (e) { return 'FAILED ' + String(e.message || e).slice(0, 120); }
 });
 ipcMain.handle('audio:formats', async () => {
   try { const out = await runPSOut(['-File', defaultsScript(), 'formats']); return JSON.parse(out.trim().split(/\r?\n/).pop()); }
