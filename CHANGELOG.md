@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.12.1 — 2026-09-13 — meters follow PLAY
+- While PLAY loops your take, every meter now shows the take instead of the live mic: IN / OUT bars, the
+  gain-reduction meter, the gate pointer and OPEN / REDUCE lights, CUTTING readout, the de-esser SSS light
+  and the limiter light. Turn a knob and watch it react. When PLAY stops, the meters go back to the mic.
+
 ## 2.12.0 — 2026-09-13 — speaker guard: your speakers are never changed
 - New SOUND row in SETUP. It shows where your PC sound goes right now ("Your sound still goes to
   Speakers (Realtek)..."). If Windows ever points your sound at the cable (VB-CABLE's installer does this on

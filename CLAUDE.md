@@ -170,6 +170,9 @@ w/scale x h/scale so it always fills the viewport. Column min-widths must sum to
   `mic:rename` now REFUSES flow 'render' outright; NAME IT no longer renames "CABLE Input". Policy from the
   owner (09-13): the app must NEVER touch a person's speakers; keep SETUP simple (mic in, name the output).
 
+- 2.12.1: meters come from whichever engine is being HEARD: main node's meter messages are ignored while
+  `playing`; `monNode.port.onmessage` feeds `meter` while playing (PLAY only runs in the monitor engine).
+
 ## Traps
 - Chromium hides device names until the mic permission is granted once — `unlockLabels()` does that.
 - `AudioContext.setSinkId('')` = default output; `'default'` id must be mapped to `''`.

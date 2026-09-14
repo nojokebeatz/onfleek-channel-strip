@@ -558,6 +558,9 @@ async function startMon() {
     const src = monCtx.createMediaStreamSource(monStream);
     monNode = new AudioWorkletNode(monCtx, 'strip-processor', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] });
     monGain = monCtx.createGain(); monGain.gain.value = phonesGain();
+    // While PLAY loops the take, this engine is the one hearing it, so its meters drive the display:
+    // IN / OUT bars, GR, gate pointer, de-esser and limiter lights all show what the take is doing.
+    monNode.port.onmessage = e => { const d = e.data; if (d.type === 'meter' && playing) Object.assign(meter, d); };
     src.connect(monNode).connect(monGain).connect(monCtx.destination);
     sendParams(); await applyMonSink(); await monCtx.resume();
     if (take) monNode.port.postMessage({ type: 'take', buf: take.slice() });
@@ -569,7 +572,7 @@ async function setPlay(on) {
   playing = on && !!take; $('#btnPlay').classList.toggle('on', playing);
   if (playing && !state.mon) { state.mon = 1; $('#btnMon').classList.add('on'); save(); await startMon(); }
   if (monNode) monNode.port.postMessage({ type: 'play', on: playing });
-  if (playing) { lcd('PLAYING YOUR TAKE · TURN KNOBS TO COMPARE', false, true); log('play take on'); } else { flashLcd('PLAY OFF · BACK TO LIVE MIC'); log('play take off'); }
+  if (playing) { lcd('PLAYING YOUR TAKE · METERS SHOW THE TAKE · TURN KNOBS TO COMPARE', false, true); log('play take on'); } else { flashLcd('PLAY OFF · BACK TO LIVE MIC'); log('play take off'); }
 }
 async function stopMon() {
   if (monStream) { monStream.getTracks().forEach(t => t.stop()); monStream = null; }
@@ -592,7 +595,7 @@ async function start() {
     node.port.onmessage = e => {
       const d = e.data;
       if (d.type === 'meter') {
-        Object.assign(meter, d);
+        if (!playing) Object.assign(meter, d);   // while PLAY runs, the meters follow the take (monitor engine), not the live mic
         if (d.clips) health.clips += d.clips;
         if (d.nans) { health.nans += d.nans; log('NaN in audio path: ' + d.nans); }
         // the worklet stamps each report with its own clock; a gap far longer than the report interval = the audio thread stalled
