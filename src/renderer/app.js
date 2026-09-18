@@ -81,10 +81,10 @@ const PRESETS = {
 };
 
 /* ---------- state ---------- */
-const state = { params: DEFAULT_PARAMS(), inputId: '', outputId: '', phonesId: '', mon: 0, nr: 0, wantDefault: 0, prevDefaultMic: '', logPin: '', rangeMigrated: 0, userPresets: {}, preset: 'Voice – Natural', fast: 0, locked: false, compact: 0, skin: 'classic', speakerId: '', speakerName: '' };
+const state = { params: DEFAULT_PARAMS(), inputId: '', outputId: '', phonesId: '', mon: 0, nr: 0, wantDefault: 0, prevDefaultMic: '', logPin: '', rangeMigrated: 0, userPresets: {}, preset: 'Voice – Natural', fast: 0, locked: false, compact: 0, skin: 'classic', speakerId: '', speakerName: '', boot: 0 };
 let ctx = null, node = null, stream = null, running = false, version = '0.0.0';
 let monCtx = null, monNode = null, monStream = null, monGain = null, lastOuts = [], setupTimer = 0, defaults = null, prevDefault = '';
-let learning = false, runLcd = 'STANDBY', reconnectTimer = 0, lastIns = [], formats = null;
+let learning = false, runLcd = 'STANDBY', reconnectTimer = 0, lastIns = [], formats = null, wantRun = true, retries = 0;
 const meter = { inPk: 0, outPk: 0, gr: 0, gateRed: 0, gateOpen: false, lim: 0, de: 0, gateLvl: -120, clips: 0, nans: 0, t: 0 };
 const GATE_HYST = 4;   // must match HYST in the worklet
 // Health counters: audio-thread stalls, clock slips, hard clips. Shown on the LCD, written to the log.
@@ -616,6 +616,7 @@ async function start() {
     renderSetup();
   } catch (e) {
     log('start failed: ' + (e && (e.stack || e.message || e.name))); lcd('MIC ERROR: ' + (e.message || e.name), true); await stop();
+    if (wantRun) scheduleReconnect();
   }
 }
 async function stop() {
@@ -627,12 +628,16 @@ async function stop() {
   if (!$('#lcd').classList.contains('err')) lcd('STANDBY');
 }
 async function restart() { await stop(); await start(); }
-function scheduleReconnect() { // mic unplugged / device vanished: keep trying every 3 s until it is back
+function scheduleReconnect() { // mic unplugged / not up yet after a PC restart: keep trying until it is back
   clearTimeout(reconnectTimer);
+  if (!wantRun) return;
+  const wait = retries < 10 ? 3000 : 10000;   // 3 s for the first 30 s, then every 10 s, forever
   reconnectTimer = setTimeout(async () => {
-    await stop(); await refreshDevices(); await start();
-    if (!running) { lcd('MIC MISSING · RETRYING…', true); scheduleReconnect(); }
-  }, 3000);
+    if (!wantRun || running) return;
+    retries++; await stop(); await refreshDevices(); await start();
+    if (!running) { lcd(`WAITING FOR THE MIC… (TRY ${retries})`, true); scheduleReconnect(); }
+    else { log('mic came back after ' + retries + ' tries'); retries = 0; }
+  }, wait);
 }
 function flashLcd(text, ms = 3000) { lcd(text); setTimeout(() => { if (running && !learning) lcd(runLcd); }, ms); }
 
@@ -1023,7 +1028,7 @@ async function boot() {
   $$('[data-knob]').forEach(buildKnob); $$('[data-tog]').forEach(buildToggle); buildFader(); buildPresets();
   const saved = await window.cs.loadState();
   if (saved && !saved.params && saved.userPresets) state.userPresets = saved.userPresets;
-  if (saved && saved.params) { state.params = Object.assign(DEFAULT_PARAMS(), saved.params); state.inputId = saved.inputId || ''; state.phonesId = saved.phonesId || ''; state.mon = saved.mon ? 1 : 0; state.nr = saved.nr ? 1 : 0; state.logPin = saved.logPin || ''; state.userPresets = (saved.userPresets && typeof saved.userPresets === 'object') ? saved.userPresets : {}; state.wantDefault = saved.wantDefault ? 1 : 0; state.fast = saved.fast ? 1 : 0; state.compact = saved.compact ? 1 : 0; state.skin = saved.skin === 'modern' ? 'modern' : 'classic'; state.speakerId = saved.speakerId || ''; state.speakerName = saved.speakerName || ''; state.prevDefaultMic = saved.prevDefaultMic || ''; state.preset = saved.preset ?? 'Voice – Natural'; }
+  if (saved && saved.params) { state.params = Object.assign(DEFAULT_PARAMS(), saved.params); state.inputId = saved.inputId || ''; state.phonesId = saved.phonesId || ''; state.mon = saved.mon ? 1 : 0; state.nr = saved.nr ? 1 : 0; state.logPin = saved.logPin || ''; state.userPresets = (saved.userPresets && typeof saved.userPresets === 'object') ? saved.userPresets : {}; state.wantDefault = saved.wantDefault ? 1 : 0; state.fast = saved.fast ? 1 : 0; state.compact = saved.compact ? 1 : 0; state.skin = saved.skin === 'modern' ? 'modern' : 'classic'; state.speakerId = saved.speakerId || ''; state.speakerName = saved.speakerName || ''; state.boot = saved.boot ? 1 : 0; state.prevDefaultMic = saved.prevDefaultMic || ''; state.preset = saved.preset ?? 'Voice – Natural'; }
   state.params.mute = 0; // never start muted
   // One-time fix-up: older versions shipped RANGE at 20 or 40 dB, which let a quiet copy of everything
   // through a closed gate. Move untouched values to FULL (dead silent) and say so once.
@@ -1081,9 +1086,10 @@ async function boot() {
   $('#btnNr').classList.toggle('on', !!state.nr);
   $('#btnNr').onclick = async () => { state.nr = state.nr ? 0 : 1; $('#btnNr').classList.toggle('on', !!state.nr); save(); if (running) { await restart(); flashLcd(state.nr ? 'NOISE CLEANUP ON' : 'NOISE CLEANUP OFF', 2000); } };
   // BOOT: start with Windows, hidden in the tray
+  if (state.boot) { try { await window.cs.setAutostart(true); } catch {} }   // re-assert after updates
   $('#btnBoot').classList.toggle('on', !!(await window.cs.getAutostart()));
   $('#btnBoot').onclick = async () => {
-    const on = !$('#btnBoot').classList.contains('on'); await window.cs.setAutostart(on);
+    const on = !$('#btnBoot').classList.contains('on'); await window.cs.setAutostart(on); state.boot = on ? 1 : 0; save();
     $('#btnBoot').classList.toggle('on', on); flashLcd(on ? 'STARTS WITH WINDOWS · LIVES IN THE TRAY' : 'AUTO START OFF', 2500);
   };
   $('#btnMin').onclick = () => window.cs.minimize(); $('#btnClose').onclick = () => window.cs.close();
@@ -1220,7 +1226,7 @@ async function boot() {
       }, 5000);
     } catch (e) { lcd('CABLE INSTALL FAILED: ' + (e.message || e), true); b.disabled = false; }
   };
-  $('#btnPower').onclick = () => running ? stop() : start();
+  $('#btnPower').onclick = () => { if (running) { wantRun = false; clearTimeout(reconnectTimer); stop(); } else { wantRun = true; start(); } };
   $('#selIn').onchange = () => { state.inputId = $('#selIn').value; save(); if (running) restart(); };
   $('#selPhones').onchange = () => { state.phonesId = $('#selPhones').value; save(); applyMonSink(); };
   $('#btnMon').classList.toggle('on', !!state.mon);
@@ -1240,13 +1246,14 @@ async function boot() {
     }
     else lcd(/NOTFOUND/.test(r) ? `WINDOWS CANNOT SEE \u201c${want}\u201d YET \u00b7 RESTART THE PC` : 'COULD NOT SET DEFAULT: ' + String(r).slice(0, 50), true);
   };
-  navigator.mediaDevices.addEventListener('devicechange', () => { refreshDevices(); clearTimeout(setupTimer); setupTimer = setTimeout(() => { refreshDefaults(); refreshFormats(); speakerGuard('device change'); }, 1500); });
+  navigator.mediaDevices.addEventListener('devicechange', () => { if (!running && wantRun) { clearTimeout(reconnectTimer); retries = 0; reconnectTimer = setTimeout(async () => { await refreshDevices(); await start(); if (!running) scheduleReconnect(); }, 800); } refreshDevices(); clearTimeout(setupTimer); setupTimer = setTimeout(() => { refreshDefaults(); refreshFormats(); speakerGuard('device change'); }, 1500); });
   $('#btnSpk').onclick = () => speakerGuard('PUT BACK button');
   setInterval(() => speakerGuard('timer'), 5 * 60 * 1000);
   window.addEventListener('resize', fit); fit();
   requestAnimationFrame(loop);
   await unlockLabels(); await refreshDevices();
   await start();
+  if (!running) { lcd('WAITING FOR THE MIC…', true); scheduleReconnect(); }
   if (rangeNote) { save(); flashLcd(rangeNote, 6000); log(rangeNote); }
   await refreshDefaults();
   refreshFormats();

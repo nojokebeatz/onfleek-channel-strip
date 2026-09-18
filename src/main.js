@@ -100,10 +100,14 @@ function createTray() {
     const img = nativeImage.createFromPath(path.join(__dirname, '..', 'build', 'icon.png')).resize({ width: 16, height: 16 });
     tray = new Tray(img); tray.setToolTip('OnFleek Channel Strip'); tray.setContextMenu(trayMenu());
     tray.on('click', showWin);
+    if (startHidden) setTimeout(() => { try { tray.displayBalloon({ title: 'OnFleek Channel Strip is running', content: 'Your mic is being processed. Click the tray icon to open the panel.', iconType: 'info' }); } catch {} }, 2500);
   } catch (e) { tray = null; }
 }
 function setAutostart(on) {
-  app.setLoginItemSettings({ openAtLogin: !!on, args: ['--hidden'] });
+  // Explicit path: after an update the exe is replaced in place, but pinning the path keeps the Windows
+  // startup entry pointing at the real installed exe (never at a temp updater copy).
+  app.setLoginItemSettings({ openAtLogin: !!on, path: process.execPath, args: ['--hidden'] });
+  logLine('main', 'autostart ' + (on ? 'ON' : 'OFF') + ' -> ' + process.execPath + ' ; now ' + JSON.stringify(app.getLoginItemSettings()));
   if (tray) tray.setContextMenu(trayMenu());
 }
 ipcMain.handle('autostart:get', () => app.getLoginItemSettings().openAtLogin);

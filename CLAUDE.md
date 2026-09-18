@@ -173,6 +173,10 @@ w/scale x h/scale so it always fills the viewport. Column min-widths must sum to
 - 2.12.1: meters come from whichever engine is being HEARD: main node's meter messages are ignored while
   `playing`; `monNode.port.onmessage` feeds `meter` while playing (PLAY only runs in the monitor engine).
 
+- 2.12.2: `wantRun` (power button intent) + `scheduleReconnect()` retry loop (3 s x10 then 10 s forever) after any
+  failed `start()` and on `devicechange`; `state.boot` re-asserts `setAutostart(true)` at every launch; login item
+  pins `process.execPath`; tray balloon on `--hidden` start.
+
 ## Traps
 - Chromium hides device names until the mic permission is granted once — `unlockLabels()` does that.
 - `AudioContext.setSinkId('')` = default output; `'default'` id must be mapped to `''`.

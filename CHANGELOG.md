@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.12.2 — 2026-09-17 — starts by itself after a PC restart
+- After a restart, USB mics often come up a few seconds after the app. The app used to try once, show
+  MIC ERROR, and give up. Now it keeps trying (every 3 s, then every 10 s) until the mic is there, and it
+  also tries the moment a mic gets plugged in. The screen says "WAITING FOR THE MIC" while it waits.
+- BOOT is remembered by the app and re-applied at every launch, so an update can no longer drop the
+  Windows startup entry. The entry now pins the real installed exe path.
+- When the app starts hidden with Windows, a small tray message says it is running.
+
 ## 2.12.1 — 2026-09-13 — meters follow PLAY
 - While PLAY loops your take, every meter now shows the take instead of the live mic: IN / OUT bars, the
   gain-reduction meter, the gate pointer and OPEN / REDUCE lights, CUTTING readout, the de-esser SSS light
