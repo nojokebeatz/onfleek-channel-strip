@@ -177,6 +177,13 @@ w/scale x h/scale so it always fills the viewport. Column min-widths must sum to
   failed `start()` and on `devicechange`; `state.boot` re-asserts `setAutostart(true)` at every launch; login item
   pins `process.execPath`; tray balloon on `--hidden` start.
 
+- ⛔ 2.12.3 CPU: `backgroundThrottling:false` + `disable-renderer-backgrounding` mean Chromium will NOT stop
+  rAF for us - the meter loop painted forever in the tray and pinned a core for 9.7 h on a 2-core laptop
+  (owner report 09-25; GPU process 35,237 s CPU). The loop is now capped (`DRAW_FPS` 30) and `setVisible()`
+  cancels/restarts it from main's show/hide/minimize/restore events + `visibilitychange`, and sleeps the GSAP
+  ticker too. Boot calls `setVisible(!document.hidden)` so a `--hidden` tray start never paints.
+  ⚠️ Any new always-on animation must hang off the same loop, never its own rAF.
+
 ## Traps
 - Chromium hides device names until the mic permission is granted once — `unlockLabels()` does that.
 - `AudioContext.setSinkId('')` = default output; `'default'` id must be mapped to `''`.

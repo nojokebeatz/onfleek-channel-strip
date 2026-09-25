@@ -791,7 +791,23 @@ function updateVerdict(outDb, dt) {
   if (text !== verdict.lastText) { verdict.lastText = text; el.textContent = text; el.className = 'lcdsmall ' + cls; }
 }
 let lastT = performance.now();
+/* The meters are the only thing that needs a frame loop. It is capped at 30 fps (nothing here moves fast
+   enough to need more) and it STOPS COMPLETELY while the window is hidden or minimized - audio keeps
+   running in its own thread, so nothing is lost. Before 2.12.3 it painted forever in the tray. */
+const DRAW_FPS = 30, FRAME_MS = 1000 / DRAW_FPS - 2;
+let rafId = 0, lastDraw = 0;
+function startDraw() { if (!rafId) { lastT = performance.now(); lastDraw = 0; rafId = requestAnimationFrame(loop); } }
+function stopDraw() { if (rafId) { cancelAnimationFrame(rafId); rafId = 0; } }
+function setVisible(on) {
+  if (on) startDraw(); else stopDraw();
+  // GSAP keeps its own frame ticker alive; park it too so nothing paints while we are in the tray.
+  try { if (window.gsap) on ? gsap.ticker.wake() : gsap.ticker.sleep(); } catch {}
+  log('draw loop ' + (on ? 'on' : 'paused (window hidden)'));
+}
 function loop(t) {
+  rafId = requestAnimationFrame(loop);
+  if (t - lastDraw < FRAME_MS) return;   // frame cap
+  lastDraw = t;
   const dt = Math.min(0.1, (t - lastT) / 1000); lastT = t;
   const inDb = dB(meter.inPk), outDb = dB(meter.outPk);
   const FALL = 40; // dB per second
@@ -836,7 +852,6 @@ function loop(t) {
   $('#ledDe').classList.toggle('on', running && !!state.params.deIn && !state.params.bypass && meter.de > 1);
   $('#deReadout').textContent = disp.de.toFixed(1);
   updateVerdict(outDb, dt);
-  requestAnimationFrame(loop);
 }
 
 /* ---------- EQ response curve ---------- */
@@ -1250,7 +1265,9 @@ async function boot() {
   $('#btnSpk').onclick = () => speakerGuard('PUT BACK button');
   setInterval(() => speakerGuard('timer'), 5 * 60 * 1000);
   window.addEventListener('resize', fit); fit();
-  requestAnimationFrame(loop);
+  window.cs.onVisible(setVisible);
+  document.addEventListener('visibilitychange', () => setVisible(!document.hidden));
+  setVisible(!document.hidden);   // started hidden in the tray = never paint until it is opened
   await unlockLabels(); await refreshDevices();
   await start();
   if (!running) { lcd('WAITING FOR THE MIC…', true); scheduleReconnect(); }

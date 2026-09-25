@@ -51,6 +51,11 @@ function createWindow() {
   });
   win.setMenuBarVisibility(false);
   win.on('resize', rememberBounds); win.on('move', rememberBounds);
+  // The panel only needs to DRAW while it is on screen. Hidden in the tray it must keep processing audio
+  // but must not paint - that spun a whole CPU core on a 2-core laptop (owner's report 09-25).
+  const vis = (on) => { try { win && !win.isDestroyed() && win.webContents.send('visible', on); } catch {} };
+  win.on('show', () => vis(true)); win.on('restore', () => vis(true)); win.on('focus', () => vis(true));
+  win.on('hide', () => vis(false)); win.on('minimize', () => vis(false));
   win.on('close', (e) => { if (!quitting) { e.preventDefault(); win.hide(); } }); // X = hide to tray, keep processing
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'), process.argv.includes('--shotlog') ? { hash: 'shotlog' } : process.argv.includes('--shotcompact') ? { hash: 'shotcompact' } : process.argv.includes('--shotmodern') ? { hash: 'shotmodern' } : (process.argv.find(a => a.startsWith('--click=')) ? { hash: 'click=' + process.argv.find(a => a.startsWith('--click=')).slice(8) } : {}));
 

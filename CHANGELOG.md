@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.12.3 — 2026-09-25 — big CPU fix
+- The meters kept drawing at full speed even when the window was hidden in the tray. On a 2-core laptop
+  that pinned a whole core for hours and made everything else (Chrome, typing) crawl. The drawing now
+  STOPS completely while the window is hidden or minimized, and starts again when you open it. Audio keeps
+  running the whole time; it never needed the picture.
+- Meters are capped at 30 frames a second instead of running as fast as the screen allows. Same look,
+  a fraction of the work.
+- If the app starts hidden with Windows, it never paints at all until you open it.
+
 ## 2.12.2 — 2026-09-17 — starts by itself after a PC restart
 - After a restart, USB mics often come up a few seconds after the app. The app used to try once, show
   MIC ERROR, and give up. Now it keeps trying (every 3 s, then every 10 s) until the mic is there, and it

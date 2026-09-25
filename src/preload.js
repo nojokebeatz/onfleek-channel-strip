@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('cs', {
   sendLog: (pin) => ipcRenderer.invoke('log:send', pin),
   saveCapture: (buf) => ipcRenderer.invoke('rec:save', buf),
   changelog: () => ipcRenderer.invoke('changelog:get'),
+  onVisible: (cb) => ipcRenderer.on('visible', (e, on) => cb(!!on)),
   onHotkey: (cb) => ipcRenderer.on('hotkey', (e, k) => cb(k)),
   muteState: (m) => ipcRenderer.invoke('mute:state', m),
   renameMic: (from, to, flow, adapter) => ipcRenderer.invoke('mic:rename', from, to, flow, adapter),
