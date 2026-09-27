@@ -41,7 +41,7 @@ const P = {
   deFreq:      { min: 2500, max: 12000, def: 6500, log: true, fmt: hz },
   deAmt:       { min: 0, max: 100, def: 40, fmt: v => v.toFixed(0) + ' %' }
 };
-const TOG = { filtersIn: 1, gateIn: 1, gateExp: 1, compIn: 1, eqIn: 1, hfBell: 0, lfBell: 0, bypass: 0, mute: 0, limIn: 1, deIn: 1, deListen: 0, compAuto: 0 };
+const TOG = { filtersIn: 1, gateIn: 1, gateExp: 1, compIn: 1, eqIn: 1, hfBell: 0, lfBell: 0, bypass: 0, mute: 0, limIn: 1, deIn: 1, deListen: 0, compAuto: 0, rideIn: 0 };
 
 const DEFAULT_PARAMS = () => {
   const o = {}; for (const k in P) o[k] = P[k].def; Object.assign(o, TOG); o.fader = 0; return o;
@@ -59,16 +59,16 @@ const PRESETS = {
   // (gate hold 250 / release 200, comp 3-4:1 thr -15..-23 atk 1-6 rel 25-100, limiter), and the rule
   // "cut mud before boosting presence". Amazon Basics condenser = warm/rounded, hears the room, so every
   // one of these gates, cuts 200-350 Hz, and de-esses. ----
-  'Podcast – Amazon USB': { hpf: 85, lpf: 15000, gateExp: 1, gateThresh: -46, gateRange: 80, gateAttack: 1, gateHold: 250, gateRelease: 200,
+  'Podcast – Amazon USB': { rideIn: 1, hpf: 85, lpf: 15000, gateExp: 1, gateThresh: -46, gateRange: 80, gateAttack: 1, gateHold: 250, gateRelease: 200,
     compThresh: -20, compRatio: 3, compAttack: 5, compRelease: 80, compMakeup: 5, compMix: 100, deIn: 1, deFreq: 6500, deAmt: 45,
     lfFreq: 120, lfGain: 1.5, lfBell: 0, lmfFreq: 240, lmfGain: -3, lmfQ: 1.2, hmfFreq: 2500, hmfGain: 1.5, hmfQ: 0.9, hfFreq: 9000, hfGain: 1.5, hfBell: 0, limIn: 1 },
-  'Webinar – Clear Speech': { hpf: 100, lpf: 12000, gateExp: 1, gateThresh: -42, gateRange: 80, gateAttack: 1, gateHold: 200, gateRelease: 150,
+  'Webinar – Clear Speech': { rideIn: 1, hpf: 100, lpf: 12000, gateExp: 1, gateThresh: -42, gateRange: 80, gateAttack: 1, gateHold: 200, gateRelease: 150,
     compThresh: -18, compRatio: 4, compAttack: 3, compRelease: 60, compMakeup: 6, compMix: 100, deIn: 1, deFreq: 7000, deAmt: 40,
     lfFreq: 100, lfGain: -1, lfBell: 0, lmfFreq: 350, lmfGain: -2, lmfQ: 0.8, hmfFreq: 3000, hmfGain: 2.5, hmfQ: 1, hfFreq: 8000, hfGain: 1, hfBell: 0, limIn: 1 },
-  'Studio – Broadcast Pro': { hpf: 75, lpf: 16000, gateExp: 1, gateThresh: -48, gateRange: 80, gateAttack: 1, gateHold: 250, gateRelease: 250,
+  'Studio – Broadcast Pro': { rideIn: 1, hpf: 75, lpf: 16000, gateExp: 1, gateThresh: -48, gateRange: 80, gateAttack: 1, gateHold: 250, gateRelease: 250,
     compThresh: -24, compRatio: 4, compAttack: 8, compRelease: 120, compMakeup: 8, compMix: 100, deIn: 1, deFreq: 6000, deAmt: 50,
     lfFreq: 110, lfGain: 2, lfBell: 0, lmfFreq: 260, lmfGain: -2.5, lmfQ: 1.2, hmfFreq: 3500, hmfGain: 2, hmfQ: 1.1, hfFreq: 10000, hfGain: 2, hfBell: 0, limIn: 1 },
-  'Radio – Deep & Warm': { hpf: 60, lpf: 14000, gateExp: 1, gateThresh: -48, gateRange: 80, gateAttack: 1, gateHold: 250, gateRelease: 250,
+  'Radio – Deep & Warm': { rideIn: 1, hpf: 60, lpf: 14000, gateExp: 1, gateThresh: -48, gateRange: 80, gateAttack: 1, gateHold: 250, gateRelease: 250,
     compThresh: -22, compRatio: 3, compAttack: 10, compRelease: 150, compMakeup: 7, compMix: 100, deIn: 1, deFreq: 6500, deAmt: 40,
     lfFreq: 120, lfGain: 3, lfBell: 1, lmfFreq: 300, lmfGain: -1.5, lmfQ: 1, hmfFreq: 2500, hmfGain: 1, hmfQ: 1, hfFreq: 12000, hfGain: 1, hfBell: 0, limIn: 1 },
   'Crisp – Bright Detail': { hpf: 100, lpf: 18000, gateExp: 1, gateThresh: -45, gateRange: 80, gateAttack: 1, gateHold: 200, gateRelease: 150,
@@ -81,7 +81,7 @@ const PRESETS = {
 };
 
 /* ---------- state ---------- */
-const state = { params: DEFAULT_PARAMS(), inputId: '', outputId: '', phonesId: '', mon: 0, nr: 0, wantDefault: 0, prevDefaultMic: '', logPin: '', rangeMigrated: 0, userPresets: {}, preset: 'Voice – Natural', fast: 0, locked: false, compact: 0, skin: 'classic', speakerId: '', speakerName: '', boot: 0 };
+const state = { params: DEFAULT_PARAMS(), inputId: '', outputId: '', phonesId: '', mon: 0, nr: 0, wantDefault: 0, prevDefaultMic: '', logPin: '', rangeMigrated: 0, userPresets: {}, preset: 'Voice – Natural', presetBase: '', fast: 0, locked: false, compact: 0, skin: 'classic', speakerId: '', speakerName: '', boot: 0 };
 let ctx = null, node = null, stream = null, running = false, version = '0.0.0';
 let monCtx = null, monNode = null, monStream = null, monGain = null, lastOuts = [], setupTimer = 0, defaults = null, prevDefault = '';
 let learning = false, runLcd = 'STANDBY', reconnectTimer = 0, lastIns = [], formats = null, wantRun = true, retries = 0;
@@ -210,19 +210,19 @@ function ticksSVG(spec) {
 const knobEls = {};
 function buildKnob(el) {
   const id = el.dataset.knob, spec = P[id];
-  el.innerHTML = `<div class="ring">${ticksSVG(spec)}</div><div class="body"><div class="cap"><div class="ptr"></div></div></div><div class="lbl">${el.dataset.label}</div><div class="val"></div>`;
+  el.innerHTML = `<div class="ring">${ticksSVG(spec)}<svg class="arc" viewBox="0 0 66 66"><path d=""/></svg></div><div class="bubble"></div><div class="body"><div class="cap"><div class="ptr"></div></div></div><div class="lbl">${el.dataset.label}</div><div class="val"></div>`;
   const body = $('.body', el), cap = $('.cap', el), val = $('.val', el);
-  knobEls[id] = { el, cap, val, spec };
+  knobEls[id] = { el, cap, val, spec, arc: $('.arc path', el), bubble: $('.bubble', el) };
   const set = (v, fromUser) => { if (fromUser && state.locked) { flashLcd('PANEL LOCKED', 800); return; } if (fromUser && id === 'compMakeup' && state.params.compAuto) { state.params.compAuto = 0; renderToggle('compAuto'); } state.params[id] = v; renderKnob(id); if (fromUser) changed(id === 'phones'); };
   let lastY = 0, dragging = false;
-  body.addEventListener('pointerdown', e => { dragging = true; lastY = e.clientY; body.setPointerCapture(e.pointerId); el.classList.add('active'); e.preventDefault(); });
+  body.addEventListener('pointerdown', e => { dragging = true; lastY = e.clientY; body.setPointerCapture(e.pointerId); el.classList.add('active', 'showval'); e.preventDefault(); });
   body.addEventListener('pointermove', e => {
     if (!dragging) return;
     const dy = lastY - e.clientY; lastY = e.clientY;
     const n = toNorm(spec, state.params[id]) + dy / currentScale() / 180 * (e.shiftKey ? 0.15 : 1);
     set(fromNorm(spec, n), true);
   });
-  const end = e => { dragging = false; el.classList.remove('active'); };
+  const end = e => { dragging = false; el.classList.remove('active', 'showval'); };
   body.addEventListener('pointerup', end); body.addEventListener('pointercancel', end);
   body.addEventListener('dblclick', () => set(spec.def, true));
   val.title = 'Double-click to type a number'; val.style.cursor = 'text';
@@ -234,13 +234,24 @@ function buildKnob(el) {
     inp.addEventListener('keydown', e => { if (e.key === 'Enter') done(true); else if (e.key === 'Escape') done(false); e.stopPropagation(); });
     inp.addEventListener('blur', () => { if (inp.isConnected) done(true); });
   });
-  el.addEventListener('wheel', e => { e.preventDefault(); const n = toNorm(spec, state.params[id]) - Math.sign(e.deltaY) * (e.shiftKey ? 0.004 : 0.02); set(fromNorm(spec, n), true); }, { passive: false });
+  let wheelT = 0;
+  el.addEventListener('wheel', e => { e.preventDefault(); const n = toNorm(spec, state.params[id]) - Math.sign(e.deltaY) * (e.shiftKey ? 0.004 : 0.02); set(fromNorm(spec, n), true); el.classList.add('showval'); clearTimeout(wheelT); wheelT = setTimeout(() => { if (!dragging) el.classList.remove('showval'); }, 800); }, { passive: false });
+}
+// Value arc: a thin coloured ring outside the ticks shows how far the knob is turned (from the left
+// stop, or from the middle for +/- knobs like GAIN and TRIM).
+function arcPath(a0, a1) {
+  if (Math.abs(a1 - a0) < 0.5) return '';
+  const r = 32, P = (a) => { const t = a * Math.PI / 180; return (33 + Math.sin(t) * r).toFixed(2) + ' ' + (33 - Math.cos(t) * r).toFixed(2); };
+  const lo = Math.min(a0, a1), hi = Math.max(a0, a1), large = hi - lo > 180 ? 1 : 0;
+  return `M ${P(lo)} A ${r} ${r} 0 ${large} 1 ${P(hi)}`;
 }
 function renderKnob(id) {
   const k = knobEls[id]; if (!k) return;
-  const n = toNorm(k.spec, state.params[id]);
-  k.cap.style.setProperty('--rot', (-150 + 300 * n).toFixed(2) + 'deg');
-  k.val.textContent = k.spec.fmt(state.params[id]);
+  const n = toNorm(k.spec, state.params[id]), ang = -150 + 300 * n;
+  k.cap.style.setProperty('--rot', ang.toFixed(2) + 'deg');
+  const txt = k.spec.fmt(state.params[id]);
+  k.val.textContent = txt; if (k.bubble) k.bubble.textContent = txt;
+  if (k.arc) k.arc.setAttribute('d', arcPath(k.spec.center ? 0 : -150, ang));
 }
 
 /* ---------- toggles ---------- */
@@ -255,7 +266,7 @@ function renderToggle(id) {
   togEls[id] && togEls[id].classList.toggle('on', !!state.params[id]);
   if (SEC_OF[id]) $(SEC_OF[id]).classList.toggle('off', !state.params[id]);
   if (id === 'bypass') $$('.sec-input,.sec-gate,.sec-comp,.sec-de,.sec-eq').forEach(e => e.classList.toggle('byp', !!state.params.bypass));
-  if (id === 'mute') { window.cs.muteState(!!state.params.mute); if (window.cs.onTrayMute) window.cs.onTrayMute(!!state.params.mute); if (lastOuts) renderSetup(); }
+  if (id === 'mute') { document.body.classList.toggle('is-muted', !!state.params.mute); window.cs.muteState(!!state.params.mute); if (window.cs.onTrayMute) window.cs.onTrayMute(!!state.params.mute); if (lastOuts) renderSetup(); }
 }
 
 /* ---------- fader ---------- */
@@ -313,7 +324,7 @@ function undo() { if (!hist.past.length) return flashLcd('NOTHING TO UNDO', 1200
 function redo() { if (!hist.future.length) return flashLcd('NOTHING TO REDO', 1200); hist.past.push(hist.last); restore(hist.future.pop()); flashLcd('REDO', 1000); }
 function changed(keepPreset) {
   snap();
-  if (!keepPreset && state.preset !== '') { state.preset = ''; $('#selPreset').value = ''; $('#btnDelPreset').hidden = true; }
+  if (!keepPreset && state.preset !== '') { state.presetBase = state.preset; state.preset = ''; fillPresetList(); }
   if (!sendPending) { sendPending = true; requestAnimationFrame(() => { sendPending = false; sendParams(); drawCurve(); }); }
   clearTimeout(saveTimer); saveTimer = setTimeout(save, 400);
 }
@@ -336,12 +347,13 @@ const NOT_IN_PRESET = ['phones', 'mute', 'fader', 'deListen'];   // per-session 
 const isUserPreset = (v) => typeof v === 'string' && v.startsWith('u:');
 const presetValid = (v) => (v in PRESETS) || (isUserPreset(v) && state.userPresets && (v.slice(2) in state.userPresets));
 function presetParams(v) { return v in PRESETS ? PRESETS[v] : (state.userPresets[v.slice(2)] || {}); }
+const presetLabel = (v) => isUserPreset(v) ? v.slice(2) : v;
 function fillPresetList() {
   const sel = $('#selPreset'); const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
   const mine = Object.keys(state.userPresets || {}).sort((a, b) => a.localeCompare(b));
   sel.innerHTML = '<optgroup label="BUILT IN">' + Object.keys(PRESETS).map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('') + '</optgroup>'
     + (mine.length ? '<optgroup label="MY PRESETS">' + mine.map(n => `<option value="u:${esc(n)}">${esc(n)}</option>`).join('') + '</optgroup>' : '')
-    + '<option value="">Custom (unsaved)</option>';
+    + `<option value="">${state.presetBase && presetValid(state.presetBase) ? esc(presetLabel(state.presetBase)) + ' (edited)' : 'Custom (unsaved)'}</option>`;
   sel.value = presetValid(state.preset) ? state.preset : '';
   $('#btnDelPreset').hidden = !isUserPreset(sel.value);
 }
@@ -352,7 +364,7 @@ function buildPresets() {
     $('#btnDelPreset').hidden = !isUserPreset(sel.value);
     if (!sel.value) { state.preset = ''; save(); return; }
     const keep = {}; NOT_IN_PRESET.forEach(k => keep[k] = state.params[k]);
-    state.params = Object.assign(DEFAULT_PARAMS(), presetParams(sel.value), keep); state.preset = sel.value; renderAll(); changed(true);
+    state.params = Object.assign(DEFAULT_PARAMS(), presetParams(sel.value), keep); state.preset = sel.value; state.presetBase = ''; renderAll(); changed(true);
     log('preset loaded: ' + sel.value);
   });
   // SAVE: name it, keep it. Same name = replace.
@@ -794,6 +806,7 @@ let lastT = performance.now();
 /* The meters are the only thing that needs a frame loop. It is capped at 30 fps (nothing here moves fast
    enough to need more) and it STOPS COMPLETELY while the window is hidden or minimized - audio keeps
    running in its own thread, so nothing is lost. Before 2.12.3 it painted forever in the tray. */
+let grBand = '', lastRideTxt = '';
 const DRAW_FPS = 30, FRAME_MS = 1000 / DRAW_FPS - 2;
 let rafId = 0, lastDraw = 0;
 function startDraw() { if (!rafId) { lastT = performance.now(); lastDraw = 0; rafId = requestAnimationFrame(loop); } }
@@ -841,6 +854,12 @@ function loop(t) {
   drawGR(60, disp.gr); drawColumn(114, disp.out, disp.outHold, 'OUT', true); drawScale();
   if (state.compact) { drawCompactMeters(); if ((t / 250 | 0) % 2 === 0) syncCompact(); }
   $('#grReadout').textContent = disp.gr.toFixed(1);
+  { // how hard the compressor is working, in colour and one plain word
+    const band = !running || !state.params.compIn || state.params.bypass ? 'idle' : disp.gr < 0.5 ? 'idle' : disp.gr < 6 ? 'gentle' : disp.gr < 10 ? 'firm' : 'heavy';
+    if (band !== grBand) { grBand = band; $('#grReadout').className = 'grbig gr-' + band; $('#grWord').textContent = { idle: 'dB GAIN REDUCTION', gentle: 'dB \u00b7 GENTLE', firm: 'dB \u00b7 FIRM', heavy: 'dB \u00b7 HEAVY, LOWER TRIM' }[band]; }
+    const rideTxt = running && state.params.rideIn && !state.params.bypass ? `RIDE ${meter.ride >= 0 ? '+' : ''}${(meter.ride || 0).toFixed(1)} dB` : 'SOFT KNEE 6 dB';
+    if (rideTxt !== lastRideTxt) { lastRideTxt = rideTxt; $('#rideTxt').textContent = rideTxt; }
+  }
   if ((t / 100 | 0) % 2 === 0) $('#peaks').textContent = running ? `PEAK  IN ${disp.inHold <= -60 ? '\u2212\u221e' : disp.inHold.toFixed(1)}  \u00b7  OUT ${disp.outHold <= -60 ? '\u2212\u221e' : disp.outHold.toFixed(1)}  dBFS` : 'PEAK  IN \u2014  \u00b7  OUT \u2014';
   const gateOn = running && state.params.gateIn && !state.params.bypass;
   $('#ledGateOpen').classList.toggle('on', gateOn && meter.gateOpen);
@@ -1043,7 +1062,7 @@ async function boot() {
   $$('[data-knob]').forEach(buildKnob); $$('[data-tog]').forEach(buildToggle); buildFader(); buildPresets();
   const saved = await window.cs.loadState();
   if (saved && !saved.params && saved.userPresets) state.userPresets = saved.userPresets;
-  if (saved && saved.params) { state.params = Object.assign(DEFAULT_PARAMS(), saved.params); state.inputId = saved.inputId || ''; state.phonesId = saved.phonesId || ''; state.mon = saved.mon ? 1 : 0; state.nr = saved.nr ? 1 : 0; state.logPin = saved.logPin || ''; state.userPresets = (saved.userPresets && typeof saved.userPresets === 'object') ? saved.userPresets : {}; state.wantDefault = saved.wantDefault ? 1 : 0; state.fast = saved.fast ? 1 : 0; state.compact = saved.compact ? 1 : 0; state.skin = saved.skin === 'modern' ? 'modern' : 'classic'; state.speakerId = saved.speakerId || ''; state.speakerName = saved.speakerName || ''; state.boot = saved.boot ? 1 : 0; state.prevDefaultMic = saved.prevDefaultMic || ''; state.preset = saved.preset ?? 'Voice – Natural'; }
+  if (saved && saved.params) { state.params = Object.assign(DEFAULT_PARAMS(), saved.params); state.inputId = saved.inputId || ''; state.phonesId = saved.phonesId || ''; state.mon = saved.mon ? 1 : 0; state.nr = saved.nr ? 1 : 0; state.logPin = saved.logPin || ''; state.userPresets = (saved.userPresets && typeof saved.userPresets === 'object') ? saved.userPresets : {}; state.wantDefault = saved.wantDefault ? 1 : 0; state.fast = saved.fast ? 1 : 0; state.compact = saved.compact ? 1 : 0; state.skin = saved.skin === 'modern' ? 'modern' : 'classic'; state.speakerId = saved.speakerId || ''; state.speakerName = saved.speakerName || ''; state.boot = saved.boot ? 1 : 0; state.presetBase = saved.presetBase || ''; state.prevDefaultMic = saved.prevDefaultMic || ''; state.preset = saved.preset ?? 'Voice – Natural'; }
   state.params.mute = 0; // never start muted
   // One-time fix-up: older versions shipped RANGE at 20 or 40 dB, which let a quiet copy of everything
   // through a closed gate. Move untouched values to FULL (dead silent) and say so once.
@@ -1205,7 +1224,7 @@ async function boot() {
     $('#logBox').hidden = false;
   };
   if (location.hash === '#shotlog') $('#verLabel').onclick();
-  if (location.hash.startsWith('#click=')) setTimeout(() => { const el = $('#' + location.hash.slice(7)); if (el) el.click(); }, 300);   // screenshot helper
+  if (location.hash.startsWith('#click=')) setTimeout(() => { const q = decodeURIComponent(location.hash.slice(7)); const el = document.getElementById(q) || document.querySelector(q); if (el) el.click(); }, 300);   // screenshot helper (id or CSS selector)
   $('#logClose').onclick = () => { $('#logBox').hidden = true; };
   // Health ticker: audio clock vs wall clock once a second; counts on the LCD while running
   setInterval(() => {

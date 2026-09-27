@@ -184,6 +184,14 @@ w/scale x h/scale so it always fills the viewport. Column min-widths must sum to
   ticker too. Boot calls `setVisible(!document.hidden)` so a `--hidden` tray start never paints.
   ⚠️ Any new always-on animation must hang off the same loop, never its own rAF.
 
+- 2.13.0 DSP: gate look-ahead delay line (`GATE_LA_MS` 2, runs even with the gate off so toggling never jumps);
+  RIDE leveler after the gate (`rideIn`, target -22 dBFS RMS, +9/-6 dB, 0.4 s detector, ~1 s move, frozen when
+  the gate is shut; meter message carries `ride`); limiter hard clamp REMOVED, replaced by `softCeil()` (tanh,
+  knee -1 dBFS, ceiling -0.1 dBFS) at the very end of every path incl. bypass; `clips` now = samples that would
+  have passed +/-1.0. Tests prove each (look-ahead test fails at -25.5 dB without it). UI: knob `.arc` path +
+  `.bubble` in buildKnob/renderKnob; `body.is-muted` + `#muteStamp` (inside #strip, so hidden in compact);
+  `grBand` classes; `state.presetBase` -> "<name> (edited)". --click accepts a CSS selector now.
+
 ## Traps
 - Chromium hides device names until the mic permission is granted once — `unlockLabels()` does that.
 - `AudioContext.setSinkId('')` = default output; `'default'` id must be mapped to `''`.

@@ -53,6 +53,7 @@
       <div class="pinbox-text lcdsmall" id="shareCopied"></div>
     </div>
   </div>
+  <div id="muteStamp" aria-hidden="true">MIC MUTED</div>
   <div id="updateBar" hidden><span id="updateText">New version available</span><button id="updateBtn">GET IT</button></div>
 
   <div class="plate">
@@ -149,7 +150,7 @@
     <div class="col">
       <section class="sec sec-comp">
         <div class="sec-head"><span class="sec-title">COMPRESSOR</span>
-          <div class="sec-btns"><button class="tog wide" data-tog="compAuto" data-lamp="#c8ff5a" title="AUTO sets MAKE UP for you from THRESHOLD and RATIO. Turn the MAKE UP knob to take over.">AUTO</button><button class="tog" data-tog="compIn">IN</button></div>
+          <div class="sec-btns"><button class="tog" data-tog="rideIn" data-lamp="#7fd7ff" title="RIDE: keeps your voice at one steady loudness when you lean back or get loud. Freezes when you stop talking.">RIDE</button><button class="tog" data-tog="compAuto" data-lamp="#c8ff5a" title="AUTO sets MAKE UP for you from THRESHOLD and RATIO. Turn the MAKE UP knob to take over.">AUTO</button><button class="tog" data-tog="compIn">IN</button></div>
         </div>
         <div class="knobrow">
           <div class="knob c-cream" data-knob="compThresh" data-label="THRESHOLD"></div>
@@ -161,7 +162,7 @@
           <div class="knob c-cream" data-knob="compMakeup" data-label="MAKE UP"></div>
           <div class="knob c-cream" data-knob="compMix" data-label="MIX"></div>
         </div>
-        <div class="readrow"><span class="grbig" id="grReadout">0.0</span><span class="tiny">dB GAIN REDUCTION · SOFT KNEE 6 dB</span></div>
+        <div class="readrow"><span class="grbig" id="grReadout">0.0</span><span class="tiny"><span id="grWord">dB GAIN REDUCTION</span> · <span id="rideTxt">SOFT KNEE 6 dB</span></span></div>
       </section>
 
       <section class="sec sec-de">

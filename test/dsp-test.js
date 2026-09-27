@@ -86,5 +86,29 @@ check('de-esser at AMOUNT 0 ignores quiet hiss', run({ deIn: 1, deFreq: 7000, de
   const ok = tone < -18 && hiss > -12 && hiss - tone > 15;
   console.log(`${ok ? 'PASS' : 'FAIL'}  LISTEN: 1 kHz tone ${tone.toFixed(1)} dB (want < -18), 7 kHz hiss ${hiss.toFixed(1)} dB (want > -12)`); if (!ok) fails++;
 }
+{ // RIDE: an 18 dB spread between a quiet and a loud talker comes out much closer together
+  const quiet = run({ rideIn: 1 }, 1000, -34, 7), loud = run({ rideIn: 1 }, 1000, -16, 7);
+  const spread = loud - quiet, ok = spread < 8;
+  console.log(`${ok ? 'PASS' : 'FAIL'}  RIDE levels talkers: -34 in -> ${quiet.toFixed(1)}, -16 in -> ${loud.toFixed(1)} (spread ${spread.toFixed(1)} dB, was 18, want < 8)`); if (!ok) fails++;
+  const off = run({ rideIn: 0 }, 1000, -34, 2);
+  check('RIDE off leaves level alone', off, -34, 0.2);
+}
+{ // GATE LOOK-AHEAD: a word that starts hard after silence comes through at full level from its first cycle
+  const p = new Proc(); p.port.onmessage({ data: { type: 'params', p: Object.assign({}, FLAT, { gateIn: 1, gateExp: 0, gateThresh: -45, gateRange: 80, gateAttack: 1, gateHold: 50, gateRelease: 100 }) } });
+  const amp = Math.pow(10, -20 / 20), L = new Float32Array(128), R = new Float32Array(128), inb = new Float32Array(128);
+  let n = 0, started = -1, first = 0; const burstAt = 48000;
+  for (let b = 0; b < 500; b++) {
+    for (let k = 0; k < 128; k++, n++) inb[k] = n >= burstAt ? amp * Math.sin(2 * Math.PI * 1000 * (n - burstAt) / SR) : 0;
+    p.process([[inb]], [[L, R]]);
+    for (let k = 0; k < 128; k++) { const on = n - 128 + k; if (started < 0 && Math.abs(L[k]) > 1e-4) started = on; if (started >= 0 && on - started < 48) first = Math.max(first, Math.abs(L[k])); }
+  }
+  const firstDb = 20 * Math.log10(first + 1e-12), ok = firstDb > -21.5;
+  console.log(`${ok ? 'PASS' : 'FAIL'}  gate look-ahead: first 1 ms of a word peaks at ${firstDb.toFixed(1)} dB (full = -20, want > -21.5)`); if (!ok) fails++;
+}
+{ // SOFT CEILING: with LIM off, a +6 dBFS overload never leaves hotter than -0.1 dBFS
+  const hot = run({ limIn: 0 }, 1000, 6), ok = hot <= -0.05 && hot > -1.5;
+  console.log(`${ok ? 'PASS' : 'FAIL'}  soft ceiling with LIM off: +6 in -> ${hot.toFixed(2)} dB (want between -1.5 and -0.05)`); if (!ok) fails++;
+  check('soft ceiling leaves -3 alone', run({ limIn: 0 }, 1000, -3), -3, 0.05);
+}
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASS');
 process.exit(fails ? 1 : 0);

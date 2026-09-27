@@ -295,3 +295,24 @@ select optgroup{color:#9a988f;font:700 11px var(--font);letter-spacing:1px;backg
 .nameselect{margin-bottom:8px;color-scheme:dark;background:#101113;color:#e4e1d6}
 .winbtns .upd.c-skin{background:linear-gradient(#35d6ff,#1aa8d6);color:#03222e;border-color:#0c6c8c}
 .winbtns .upd.c-skin:hover{background:linear-gradient(#5fe0ff,#2bb8e6)}
+
+/* V1 value arc (classic amber; EQ rows use their band colour; modern skin makes it blue) */
+.knob .ring svg.arc{position:absolute;inset:0;overflow:visible}
+.knob .arc path{fill:none;stroke:var(--amber);stroke-width:2.2;stroke-linecap:round;opacity:.9;filter:drop-shadow(0 0 2px rgba(255,176,46,.55))}
+.knobrow.band .arc path{stroke:var(--band);filter:drop-shadow(0 0 2px var(--band))}
+.sec.off .arc path,.sec.byp .arc path{opacity:.35;filter:none}
+/* V2 big value bubble while you turn a knob */
+.knob .bubble{position:absolute;left:50%;top:-6px;transform:translate(-50%,-100%) scale(.9);padding:4px 9px;border-radius:5px;background:#0b0c0d;
+  border:1px solid var(--amber);color:#ffd27a;font:700 15px var(--mono);white-space:nowrap;pointer-events:none;opacity:0;z-index:30;
+  box-shadow:0 6px 16px rgba(0,0,0,.7);transition:opacity .12s,transform .12s}
+.knob.showval .bubble{opacity:1;transform:translate(-50%,-100%) scale(1)}
+/* V3 MUTED: the whole panel gets a red edge and a stamp, so nobody talks into a muted mic by mistake */
+#muteStamp{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);z-index:40;pointer-events:none;display:none;
+  padding:6px 22px;border-radius:6px;background:rgba(214,42,32,.92);color:#fff;font:800 16px var(--font);letter-spacing:4px;box-shadow:0 0 24px rgba(255,59,48,.6)}
+body.is-muted #muteStamp{display:block}
+body.is-muted #strip,body.is-muted #compact{box-shadow:inset 0 0 0 3px #ff3b30,inset 0 0 40px rgba(255,59,48,.35)}
+/* V4 how hard the compressor works */
+.grbig.gr-idle{color:#6f6c63;text-shadow:none}
+.grbig.gr-gentle{color:#5dff7a;text-shadow:0 0 8px rgba(93,255,122,.45)}
+.grbig.gr-firm{color:#ffb02e;text-shadow:0 0 8px rgba(255,176,46,.5)}
+.grbig.gr-heavy{color:#ff5a4e;text-shadow:0 0 10px rgba(255,90,78,.6)}

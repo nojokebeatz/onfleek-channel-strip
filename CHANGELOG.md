@@ -1,5 +1,25 @@
 # Changelog
 
+## 2.13.0 — 2026-09-27 — 3 sound + 5 look improvements
+Sound:
+- RIDE (new button in COMPRESSOR): keeps your voice at one steady loudness. Lean back or get excited and
+  it quietly evens it out, up to +9 / -6 dB, slowly so it never pumps. It freezes while you are silent, so
+  it never turns up the room. On in the Podcast, Webinar, Studio and Radio presets. The readout under the
+  compressor shows what it is doing ("RIDE +3.2 dB").
+- The gate now hears each word 2 ms before letting it through, so the first sound of a word ("h" in
+  "hello") is never chopped off. Tested: the first millisecond of a word now comes through at full level
+  (was 5.5 dB short).
+- Soft safety ceiling at the very end, always on: anything too loud gets rounded off smoothly just under
+  0 dB instead of hitting a hard digital wall (the harsh "8-bit" kind of distortion). Works even with LIM off.
+Look:
+- Every knob has a glowing arc that shows how far it is turned (from the middle for GAIN and TRIM). EQ
+  knobs use their band colour.
+- Turning a knob shows its value in a big bubble above it, easy to read while you drag or scroll.
+- When MUTE is on, the whole panel gets a red edge and a "MIC MUTED" stamp. Hard to miss on a call.
+- The compressor's gain-reduction number changes colour and says how hard it is working: GENTLE (green),
+  FIRM (amber), HEAVY (red, lower TRIM).
+- Change a knob after picking a preset and the list says "Webex (edited)" instead of "Custom (unsaved)".
+
 ## 2.12.3 — 2026-09-25 — big CPU fix
 - The meters kept drawing at full speed even when the window was hidden in the tray. On a 2-core laptop
   that pinned a whole core for hours and made everything else (Chrome, typing) crawl. The drawing now

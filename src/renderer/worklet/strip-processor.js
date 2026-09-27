@@ -1,9 +1,19 @@
 // OnFleek Channel Strip — DSP. Runs on the audio thread (AudioWorklet).
-// Signal flow: mic -> trim -> filters -> gate/expander -> compressor -> EQ -> fader -> out
+// Signal flow: mic -> trim -> filters -> gate/expander (2 ms look-ahead) -> RIDE leveler -> compressor
+//              -> de-esser -> EQ -> fader -> limiter -> soft safety ceiling -> out
 const DB = (g) => 20 * Math.log10(g);
 const LIN = (db) => Math.pow(10, db / 20);
 const TC = (ms, sr) => 1 - Math.exp(-1 / (Math.max(0.01, ms) * 0.001 * sr));
 const HYST = 4;   // gate opens at THRESHOLD, closes HYST dB below it (the panel draws both lines)
+const GATE_LA_MS = 2;          // gate look-ahead: the gate hears a word 2 ms before it lets it through
+const RIDE_TARGET = -22;       // RIDE aims for this average (RMS) level, dBFS, before the compressor
+const RIDE_UP = 9, RIDE_DOWN = 6;   // most it will lift / pull, dB
+const SAFE_KNEE = Math.pow(10, -1 / 20), SAFE_CEIL = Math.pow(10, -0.1 / 20);   // soft ceiling: bends from -1 dBFS, never passes -0.1
+function softCeil(x) { // smooth tanh bend instead of a hard clip: overs become round, not "8-bit" square
+  const a = x < 0 ? -x : x; if (a <= SAFE_KNEE) return x;
+  const r = SAFE_CEIL - SAFE_KNEE, y = SAFE_KNEE + r * Math.tanh((a - SAFE_KNEE) / r);
+  return x < 0 ? -y : y;
+}
 
 class Biquad {
   constructor() { this.b0 = 1; this.b1 = 0; this.b2 = 0; this.a1 = 0; this.a2 = 0; this.z1 = 0; this.z2 = 0; }
@@ -50,7 +60,7 @@ const DEFAULTS = {
   eqIn: 1, hfFreq: 12000, hfGain: 1.5, hfBell: 0, hmfFreq: 3000, hmfGain: 1.5, hmfQ: 1,
   lmfFreq: 300, lmfGain: -1.5, lmfQ: 1, lfFreq: 100, lfGain: 1, lfBell: 0,
   fader: 0, bypass: 0, mute: 0, limIn: 1,
-  deIn: 1, deFreq: 6500, deAmt: 40, deListen: 0, compAuto: 0
+  deIn: 1, deFreq: 6500, deAmt: 40, deListen: 0, compAuto: 0, rideIn: 0
 };
 
 class StripProcessor extends AudioWorkletProcessor {
@@ -65,6 +75,8 @@ class StripProcessor extends AudioWorkletProcessor {
     this.muteG = 1; this.limG = 1; this.limRedMax = 0; this.dl = new Float32Array(256); this.dlPos = 0;
     this.deBp = new Biquad(); this.deEnv = 0; this.deGr = 0; this.deRedMax = 0;
     this.dn = 1e-18;
+    this.gdl = new Float32Array(512); this.gdlPos = 0;        // gate look-ahead delay line
+    this.rideSq = 0; this.rideDb = 0; this.rideMax = -99;        // RIDE: slow RMS detector + current gain (dB)
     this.pkIn = 0; this.pkOut = 0; this.grMax = 0; this.gateRedMax = 0; this.count = 0;
     this.gateLvlMax = -120; this.clipCount = 0; this.nanCount = 0; this.sqIn = 0; this.sqOut = 0;
     this.recIn = null; this.recOut = null; this.recPos = 0; this.take = null; this.playing = false; this.playPos = 0;
@@ -100,6 +112,9 @@ class StripProcessor extends AudioWorkletProcessor {
     this.deEnvAtk = TC(0.3, sr); this.deEnvRel = TC(30, sr); this.deAtk = TC(0.5, sr); this.deRel = TC(60, sr);
     this.limN = Math.min(255, Math.max(1, Math.round(0.001 * sr)));   // 1 ms look-ahead
     this.limAtk = TC(0.15, sr); this.limRel = TC(80, sr); this.limCeil = LIN(-1);
+    this.gLa = Math.min(511, Math.max(1, Math.round(GATE_LA_MS * 0.001 * sr)));
+    this.rideDet = TC(400, sr);    // ~0.4 s loudness window
+    this.rideMove = TC(1000, sr);  // gain moves slowly (~1 s) so it never pumps
   }
   process(inputs, outputs) {
     const inp = inputs[0], out = outputs[0];
@@ -116,8 +131,11 @@ class StripProcessor extends AudioWorkletProcessor {
       const ax = Math.abs(x); if (ax > this.pkIn) this.pkIn = ax; this.sqIn += x * x;
       if (!p.bypass) {
         if (p.filtersIn) { x = this.hp2.process(this.hp1.process(x)); x = this.lp.process(x); }
+        const gbuf = this.gdl; gbuf[this.gdlPos] = x;
+        const gDelayed = gbuf[(this.gdlPos - this.gLa) & 511]; this.gdlPos = (this.gdlPos + 1) & 511;
+        const live = x; x = gDelayed;
         if (p.gateIn) {
-          const a = Math.abs(x);
+          const a = Math.abs(live);
           this.gateEnv += (a > this.gateEnv ? this.gEnvAtk : this.gEnvRel) * (a - this.gateEnv);
           const lvl = DB(this.gateEnv + 1e-9); if (lvl > this.gateLvlMax) this.gateLvlMax = lvl;
           const thr = this.gateOpen ? p.gateThresh - HYST : p.gateThresh; // hysteresis: opens at T, closes at T - HYST
@@ -131,6 +149,16 @@ class StripProcessor extends AudioWorkletProcessor {
           x *= this.gateGain; x += this.dn;                                // keep the filters after the gate out of denormals too
           const gr = -DB(this.gateGain + 1e-9); if (gr > this.gateRedMax) this.gateRedMax = gr;
         } else { this.gateGain = 1; this.gateOpen = true; }
+        if (p.rideIn) { // slow leveler: keeps your talking at one steady loudness; frozen while the gate is shut
+          this.rideSq += (x * x - this.rideSq) * this.rideDet;
+          const rms = 10 * Math.log10(this.rideSq + 1e-12);
+          if (this.gateOpen && rms > -55) {
+            let want = RIDE_TARGET - rms; if (want > RIDE_UP) want = RIDE_UP; else if (want < -RIDE_DOWN) want = -RIDE_DOWN;
+            this.rideDb += (want - this.rideDb) * this.rideMove;
+          }
+          x *= LIN(this.rideDb);
+          if (this.rideDb > this.rideMax || this.rideMax === -99) this.rideMax = this.rideDb;
+        } else { this.rideDb += (0 - this.rideDb) * this.sm; x *= LIN(this.rideDb); }
         if (p.compIn) {
           const dry = x;
           const ca = Math.abs(x);
@@ -164,10 +192,11 @@ class StripProcessor extends AudioWorkletProcessor {
           const buf = this.dl, rd = (this.dlPos - this.limN) & 255;
           const delayed = buf[rd]; buf[this.dlPos] = x; this.dlPos = (this.dlPos + 1) & 255;
           x = delayed * this.limG;
-          if (x > this.limCeil) { x = this.limCeil; this.clipCount++; } else if (x < -this.limCeil) { x = -this.limCeil; this.clipCount++; }
           const lr = -DB(this.limG + 1e-9); if (lr > this.limRedMax) this.limRedMax = lr;
         } else { this.limG = 1; }
       } else { x = raw; }
+      if (x > 1 || x < -1) this.clipCount++;   // would have been a hard digital clip
+      x = softCeil(x);                          // always on, LIM or not: nothing leaves hotter than -0.1 dBFS
       this.muteG += (this.muteT - this.muteG) * sm; x *= this.muteG;
       if (x !== x) { x = 0; this.nanCount++; }
       if (this.recIn) {
@@ -181,7 +210,7 @@ class StripProcessor extends AudioWorkletProcessor {
     if (this.count >= 1024) {
       this.port.postMessage({ type: 'meter', inPk: this.pkIn, outPk: this.pkOut, gr: this.grMax, gateRed: this.gateRedMax, gateOpen: this.gateOpen, lim: this.limRedMax, de: this.deRedMax,
         gateLvl: this.gateLvlMax, clips: this.clipCount, nans: this.nanCount, t: Date.now(), frames: this.count,
-        rmsIn: Math.sqrt(this.sqIn / this.count), rmsOut: Math.sqrt(this.sqOut / this.count) });
+        rmsIn: Math.sqrt(this.sqIn / this.count), rmsOut: Math.sqrt(this.sqOut / this.count), ride: this.p.rideIn ? this.rideDb : 0 });
       this.sqIn = 0; this.sqOut = 0;
       this.count = 0; this.pkIn = this.pkOut = this.grMax = this.gateRedMax = this.limRedMax = this.deRedMax = 0; this.gateLvlMax = -120; this.clipCount = 0; this.nanCount = 0;
     }

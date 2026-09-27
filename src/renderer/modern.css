@@ -129,3 +129,8 @@ body.modern .c-brand{color:#fff;text-shadow:0 0 10px rgba(77,163,255,.5)}
 body.modern .c-win button{background:#131c30;border:1px solid #223258;color:#dfe7ff;border-radius:6px}
 body.modern .c-win #cExpand{background:linear-gradient(#6b4dff,#4a2fd6);border-color:#3a25a8}
 body.modern .c-preset select{border-radius:7px}
+
+body.modern .knob .arc path{stroke:var(--blue2);filter:drop-shadow(0 0 3px rgba(77,163,255,.7))}
+body.modern .knobrow.band .arc path{stroke:var(--band);filter:drop-shadow(0 0 3px var(--band))}
+body.modern .knob .bubble{background:#0a1224;border-color:var(--blue2);color:#fff;box-shadow:0 0 14px rgba(77,163,255,.45)}
+body.modern .grbig.gr-idle{color:#56658a;text-shadow:none}
